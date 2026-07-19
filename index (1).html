@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Desk</title>
+<style>
+  :root{
+    --bg:#0b0d0a;
+    --panel:#12140f;
+    --panel-2:#181b14;
+    --line:#2a2e22;
+    --amber:#e8a33d;
+    --amber-dim:#8a6a2e;
+    --green:#5fb87a;
+    --red:#d3574b;
+    --text:#d8d6c9;
+    --text-dim:#7c7b6f;
+    --mono: "IBM Plex Mono","SF Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--mono);
+    font-size:13px;
+    line-height:1.5;
+  }
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 20px;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#141610,#0f110c);
+  }
+  .brand{
+    color:var(--amber);
+    letter-spacing:2px;
+    font-size:13px;
+    text-transform:uppercase;
+  }
+  .brand b{color:var(--text);}
+  .clock{color:var(--text-dim); font-size:12px;}
+  .tabs{
+    display:flex;
+    gap:2px;
+    padding:0 20px;
+    border-bottom:1px solid var(--line);
+    background:var(--panel);
+  }
+  .tab{
+    padding:10px 16px;
+    cursor:pointer;
+    color:var(--text-dim);
+    border-bottom:2px solid transparent;
+    text-transform:uppercase;
+    letter-spacing:1px;
+    font-size:11px;
+  }
+  .tab.active{color:var(--amber); border-bottom:2px solid var(--amber);}
+  .tab:hover{color:var(--text);}
+  main{padding:20px; max-width:1200px; margin:0 auto;}
+  .view{display:none;}
+  .view.active{display:block;}
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  @media (max-width:900px){.grid{grid-template-columns:1fr;}}
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:16px;
+    margin-bottom:16px;
+  }
+  .panel h2{
+    margin:0 0 12px 0;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:1.5px;
+    color:var(--amber-dim);
+    border-bottom:1px solid var(--line);
+    padding-bottom:8px;
+  }
+  label{display:block; font-size:11px; color:var(--text-dim); margin-bottom:4px; margin-top:10px; text-transform:uppercase; letter-spacing:0.5px;}
+  input, select, textarea{
+    width:100%;
+    background:#0e0f0b;
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:8px;
+    font-family:var(--mono);
+    font-size:13px;
+    border-radius:3px;
+  }
+  input:focus, select:focus, textarea:focus{outline:none; border-color:var(--amber-dim);}
+  textarea{resize:vertical; min-height:70px;}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;}
+  button{
+    background:var(--amber);
+    color:#161408;
+    border:none;
+    padding:9px 16px;
+    font-family:var(--mono);
+    font-weight:bold;
+    text-transform:uppercase;
+    letter-spacing:1px;
+    font-size:11px;
+    border-radius:3px;
+    cursor:pointer;
+    margin-top:14px;
+  }
+  button:hover{background:#f0b455;}
+  button.ghost{
+    background:transparent;
+    color:var(--text-dim);
+    border:1px solid var(--line);
+  }
+  button.ghost:hover{color:var(--text); border-color:var(--amber-dim);}
+  button.small{padding:4px 8px; font-size:10px; margin-top:0;}
+  table{width:100%; border-collapse:collapse; font-size:12px;}
+  th{
+    text-align:left;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    font-size:10px;
+    letter-spacing:0.5px;
+    padding:6px 8px;
+    border-bottom:1px solid var(--line);
+  }
+  td{padding:6px 8px; border-bottom:1px solid #1b1d16;}
+  tr:hover td{background:#151710;}
+  .pill{
+    display:inline-block;
+    padding:2px 7px;
+    border-radius:10px;
+    font-size:10px;
+    text-transform:uppercase;
+  }
+  .pill.equity{background:#22301f; color:var(--green);}
+  .pill.fno{background:#3a2412; color:var(--amber);}
+  .pill.comm{background:#2a1f30; color:#b58fd6;}
+  .pos{color:var(--green);}
+  .neg{color:var(--red);}
+  .checklist label{
+    display:flex; align-items:center; gap:8px;
+    text-transform:none; font-size:12px; color:var(--text); margin:6px 0;
+  }
+  .checklist input{width:auto;}
+  .statgrid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px;}
+  @media (max-width:700px){.statgrid{grid-template-columns:repeat(2,1fr);}}
+  .stat{background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:12px; text-align:center;}
+  .stat .num{font-size:20px; color:var(--amber); font-weight:bold;}
+  .stat .lbl{font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;}
+  .empty{color:var(--text-dim); font-style:italic; padding:20px 0; text-align:center;}
+  .save-note{font-size:11px; color:var(--text-dim); margin-top:8px;}
+  .rule-block textarea{min-height:100px;}
+  .subtabs{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
+  .subtab{padding:6px 12px; border:1px solid var(--line); border-radius:3px; cursor:pointer; font-size:11px; text-transform:uppercase; color:var(--text-dim);}
+  .subtab.active{border-color:var(--amber-dim); color:var(--amber);}
+  .warn{color:var(--red); font-weight:bold;}
+  .ok{color:var(--green);}
+  .flag{color:var(--red); font-size:10px; margin-left:6px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">Trading Desk / <b>Journal · Rules · Exposure</b></div>
+  <div class="clock" id="clock"></div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-view="journal">Journal</div>
+  <div class="tab" data-view="rules">Playbook</div>
+  <div class="tab" data-view="exposure">Exposure</div>
+</div>
+
+<main>
+
+  <!-- JOURNAL -->
+  <div class="view active" id="view-journal">
+    <div class="statgrid" id="statgrid"></div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>Log a Trade</h2>
+        <div class="row3">
+          <div><label>Segment</label>
+            <select id="f-segment">
+              <option>Equity</option>
+              <option>F&O - Futures</option>
+              <option>F&O - Options</option>
+              <option>Commodity</option>
+            </select>
+          </div>
+          <div><label>Direction</label>
+            <select id="f-direction"><option>Long</option><option>Short</option></select>
+          </div>
+          <div><label>Instrument</label><input id="f-instrument" placeholder="e.g. NIFTY, RELIANCE"></div>
+        </div>
+        <div class="row3">
+          <div><label>Entry Price</label><input id="f-entry" type="number" step="any"></div>
+          <div><label>Quantity / Lots</label><input id="f-qty" type="number" step="any"></div>
+          <div><label>Entry Date</label><input id="f-entrydate" type="date"></div>
+        </div>
+        <div class="row2">
+          <div><label>Stop Loss</label><input id="f-sl" type="number" step="any"></div>
+          <div><label>Target</label><input id="f-target" type="number" step="any"></div>
+        </div>
+        <div class="row2">
+          <div><label>Trailing Rule</label><input id="f-trail" placeholder="e.g. Trail below prior swing low"></div>
+          <div><label>Setup / Thesis Tag</label><input id="f-setup" placeholder="e.g. Breakout"></div>
+        </div>
+        <label>Notes</label>
+        <textarea id="f-notes" placeholder="Why this trade, what you're watching..."></textarea>
+        <button onclick="addTrade()">Add Trade</button>
+        <div class="save-note">Saved locally in this browser. Nothing leaves your device.</div>
+      </div>
+
+      <div class="panel">
+        <h2>Open Positions</h2>
+        <div id="open-positions"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Closed Trades</h2>
+      <div id="closed-trades"></div>
+    </div>
+  </div>
+
+  <!-- RULES / PLAYBOOK -->
+  <div class="view" id="view-rules">
+    <div class="panel">
+      <h2>Your Trading Constitution</h2>
+      <div style="color:var(--text-dim); margin-bottom:10px;">
+        Edit these once, then leave them alone — this is what you check your trades against,
+        not something to rewrite mid-trade.
+      </div>
+      <div id="rules-blocks"></div>
+      <button onclick="saveRules()">Save Playbook</button>
+      <span class="save-note" id="rules-saved"></span>
+    </div>
+  </div>
+
+  <!-- EXPOSURE -->
+  <div class="view" id="view-exposure">
+    <div class="panel">
+      <h2>Capital & Leverage Caps</h2>
+      <div class="row3">
+        <div><label>Total Capital</label><input id="cap-total" type="number" step="any"></div>
+        <div><label>Max Leverage — Equity</label><input id="cap-lev-equity" type="number" step="any"></div>
+        <div><label>Max Leverage — F&O</label><input id="cap-lev-fno" type="number" step="any"></div>
+      </div>
+      <div class="row2">
+        <div><label>Max Leverage — Commodity</label><input id="cap-lev-comm" type="number" step="any"></div>
+        <div><label>Max Risk per Trade (%)</label><input id="cap-risk-trade" type="number" step="any"></div>
+      </div>
+      <button onclick="saveCapital()">Save</button>
+      <span class="save-note" id="cap-saved"></span>
+    </div>
+
+    <div class="panel">
+      <h2>Current Exposure (from open positions)</h2>
+      <div id="exposure-table"></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ---------- storage ----------
+const LS_TRADES = 'td_trades';
+const LS_RULES = 'td_rules';
+const LS_CAPITAL = 'td_capital';
+
+function load(key, fallback){
+  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch(e){ return fallback; }
+}
+function save(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+
+let trades = load(LS_TRADES, []);
+let rules = load(LS_RULES, {
+  sizing: '', stops: '', trailing: '', targets: '', leverage: '',
+  setups: '', checklist: '', nonnegotiables: ''
+});
+let capital = load(LS_CAPITAL, { total:'', levEquity:'', levFno:'', levComm:'', riskPerTrade:'' });
+
+// ---------- tabs ----------
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('view-'+t.dataset.view).classList.add('active');
+    if(t.dataset.view==='exposure') renderExposure();
+  });
+});
+
+// ---------- clock ----------
+function tickClock(){
+  const d = new Date();
+  document.getElementById('clock').textContent = d.toLocaleString('en-IN', {dateStyle:'medium', timeStyle:'short'});
+}
+tickClock(); setInterval(tickClock, 30000);
+
+// ---------- journal ----------
+function segClass(seg){
+  if(seg==='Equity') return 'equity';
+  if(seg==='Commodity') return 'comm';
+  return 'fno';
+}
+
+function addTrade(){
+  const t = {
+    id: Date.now(),
+    segment: document.getElementById('f-segment').value,
+    direction: document.getElementById('f-direction').value,
+    instrument: document.getElementById('f-instrument').value.trim(),
+    entry: parseFloat(document.getElementById('f-entry').value),
+    qty: parseFloat(document.getElementById('f-qty').value),
+    entryDate: document.getElementById('f-entrydate').value || new Date().toISOString().slice(0,10),
+    sl: parseFloat(document.getElementById('f-sl').value),
+    target: parseFloat(document.getElementById('f-target').value),
+    trail: document.getElementById('f-trail').value.trim(),
+    setup: document.getElementById('f-setup').value.trim(),
+    notes: document.getElementById('f-notes').value.trim(),
+    status: 'open',
+    exit: null, exitDate: null,
+    checklist: {}
+  };
+  if(!t.instrument || isNaN(t.entry) || isNaN(t.qty)){
+    alert('Instrument, entry price and quantity are required.');
+    return;
+  }
+  trades.push(t);
+  save(LS_TRADES, trades);
+  ['f-instrument','f-entry','f-qty','f-sl','f-target','f-trail','f-setup','f-notes'].forEach(id=>document.getElementById(id).value='');
+  renderJournal();
+}
+
+function closeTradePrompt(id){
+  const t = trades.find(x=>x.id===id);
+  const exit = prompt('Exit price for '+t.instrument+'?');
+  if(exit===null || exit==='') return;
+  t.exit = parseFloat(exit);
+  t.exitDate = new Date().toISOString().slice(0,10);
+  t.status = 'closed';
+  save(LS_TRADES, trades);
+  renderJournal();
+}
+
+function deleteTrade(id){
+  if(!confirm('Delete this trade permanently?')) return;
+  trades = trades.filter(x=>x.id!==id);
+  save(LS_TRADES, trades);
+  renderJournal();
+}
+
+function pnl(t){
+  if(t.exit==null) return null;
+  const mult = t.direction==='Long' ? 1 : -1;
+  return (t.exit - t.entry) * t.qty * mult;
+}
+function rMultiple(t){
+  const p = pnl(t);
+  if(p==null || isNaN(t.sl)) return null;
+  const risk = Math.abs(t.entry - t.sl) * t.qty;
+  if(!risk) return null;
+  return p / risk;
+}
+
+function renderJournal(){
+  // open positions
+  const open = trades.filter(t=>t.status==='open');
+  const openEl = document.getElementById('open-positions');
+  if(open.length===0){
+    openEl.innerHTML = '<div class="empty">No open positions.</div>';
+  } else {
+    openEl.innerHTML = '<table><tr><th>Instrument</th><th>Seg</th><th>Dir</th><th>Entry</th><th>SL</th><th>Target</th><th>Trail</th><th></th></tr>' +
+      open.map(t=>`<tr>
+        <td>${t.instrument}</td>
+        <td><span class="pill ${segClass(t.segment)}">${t.segment}</span></td>
+        <td>${t.direction}</td>
+        <td>${isNaN(t.entry)?'-':t.entry}</td>
+        <td>${isNaN(t.sl)?'-':t.sl}</td>
+        <td>${isNaN(t.target)?'-':t.target}</td>
+        <td style="color:var(--text-dim)">${t.trail||'-'}</td>
+        <td><button class="ghost small" onclick="closeTradePrompt(${t.id})">Close</button></td>
+      </tr>`).join('') + '</table>';
+  }
+
+  // closed trades
+  const closed = trades.filter(t=>t.status==='closed');
+  const closedEl = document.getElementById('closed-trades');
+  if(closed.length===0){
+    closedEl.innerHTML = '<div class="empty">No closed trades yet.</div>';
+  } else {
+    closedEl.innerHTML = '<table><tr><th>Instrument</th><th>Seg</th><th>Setup</th><th>Entry</th><th>Exit</th><th>P&L</th><th>R</th><th></th></tr>' +
+      closed.slice().reverse().map(t=>{
+        const p = pnl(t); const r = rMultiple(t);
+        return `<tr>
+          <td>${t.instrument}</td>
+          <td><span class="pill ${segClass(t.segment)}">${t.segment}</span></td>
+          <td style="color:var(--text-dim)">${t.setup||'-'}</td>
+          <td>${t.entry}</td>
+          <td>${t.exit}</td>
+          <td class="${p>=0?'pos':'neg'}">${p!=null?p.toFixed(2):'-'}</td>
+          <td class="${r>=0?'pos':'neg'}">${r!=null?r.toFixed(2)+'R':'-'}</td>
+          <td><button class="ghost small" onclick="deleteTrade(${t.id})">Delete</button></td>
+        </tr>`;
+      }).join('') + '</table>';
+  }
+
+  // stats
+  const closedWithPnl = closed.map(pnl).filter(p=>p!=null);
+  const wins = closedWithPnl.filter(p=>p>0).length;
+  const winRate = closedWithPnl.length ? (wins/closedWithPnl.length*100).toFixed(0)+'%' : '-';
+  const rVals = closed.map(rMultiple).filter(r=>r!=null);
+  const avgR = rVals.length ? (rVals.reduce((a,b)=>a+b,0)/rVals.length).toFixed(2) : '-';
+  const expectancy = rVals.length ? (rVals.reduce((a,b)=>a+b,0)/rVals.length).toFixed(2)+'R' : '-';
+
+  document.getElementById('statgrid').innerHTML = `
+    <div class="stat"><div class="num">${trades.filter(t=>t.status==='open').length}</div><div class="lbl">Open Positions</div></div>
+    <div class="stat"><div class="num">${closed.length}</div><div class="lbl">Closed Trades</div></div>
+    <div class="stat"><div class="num">${winRate}</div><div class="lbl">Win Rate</div></div>
+    <div class="stat"><div class="num">${expectancy}</div><div class="lbl">Expectancy</div></div>
+  `;
+}
+
+// ---------- rules ----------
+const ruleFields = [
+  {key:'sizing', label:'Position Sizing Rules'},
+  {key:'stops', label:'Stop-Loss Rules'},
+  {key:'trailing', label:'Trailing Rules'},
+  {key:'targets', label:'Target / Profit-Taking Rules'},
+  {key:'leverage', label:'Leverage Caps'},
+  {key:'setups', label:'Setups I Trade'},
+  {key:'checklist', label:'Pre-Trade Checklist'},
+  {key:'nonnegotiables', label:'Non-Negotiables — Never Break These'}
+];
+
+function renderRules(){
+  document.getElementById('rules-blocks').innerHTML = ruleFields.map(f=>`
+    <div class="rule-block">
+      <label>${f.label}</label>
+      <textarea id="rule-${f.key}">${rules[f.key]||''}</textarea>
+    </div>
+  `).join('');
+}
+function saveRules(){
+  ruleFields.forEach(f=>{
+    rules[f.key] = document.getElementById('rule-'+f.key).value;
+  });
+  save(LS_RULES, rules);
+  document.getElementById('rules-saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN');
+}
+
+// ---------- exposure ----------
+function loadCapitalForm(){
+  document.getElementById('cap-total').value = capital.total;
+  document.getElementById('cap-lev-equity').value = capital.levEquity;
+  document.getElementById('cap-lev-fno').value = capital.levFno;
+  document.getElementById('cap-lev-comm').value = capital.levComm;
+  document.getElementById('cap-risk-trade').value = capital.riskPerTrade;
+}
+function saveCapital(){
+  capital = {
+    total: parseFloat(document.getElementById('cap-total').value)||0,
+    levEquity: parseFloat(document.getElementById('cap-lev-equity').value)||0,
+    levFno: parseFloat(document.getElementById('cap-lev-fno').value)||0,
+    levComm: parseFloat(document.getElementById('cap-lev-comm').value)||0,
+    riskPerTrade: parseFloat(document.getElementById('cap-risk-trade').value)||0
+  };
+  save(LS_CAPITAL, capital);
+  document.getElementById('cap-saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN');
+  renderExposure();
+}
+
+function renderExposure(){
+  const open = trades.filter(t=>t.status==='open');
+  const segs = {
+    'Equity': {cap: capital.levEquity, exp:0},
+    'F&O - Futures': {cap: capital.levFno, exp:0},
+    'F&O - Options': {cap: capital.levFno, exp:0},
+    'Commodity': {cap: capital.levComm, exp:0}
+  };
+  open.forEach(t=>{
+    const notional = (t.entry||0) * (t.qty||0);
+    if(segs[t.segment]) segs[t.segment].exp += notional;
+  });
+  const totalCap = capital.total || 0;
+  let rows = '';
+  Object.keys(segs).forEach(seg=>{
+    const s = segs[seg];
+    const leverUsed = totalCap ? (s.exp/totalCap) : 0;
+    const overCap = s.cap && leverUsed > s.cap;
+    rows += `<tr>
+      <td><span class="pill ${segClass(seg)}">${seg}</span></td>
+      <td>${s.exp.toFixed(0)}</td>
+      <td>${totalCap ? leverUsed.toFixed(2)+'x' : '-'}</td>
+      <td>${s.cap ? s.cap+'x' : '-'}</td>
+      <td class="${overCap?'warn':'ok'}">${overCap ? 'OVER CAP' : 'OK'}</td>
+    </tr>`;
+  });
+  document.getElementById('exposure-table').innerHTML =
+    `<table><tr><th>Segment</th><th>Exposure (₹)</th><th>Leverage Used</th><th>Cap</th><th>Status</th></tr>${rows}</table>`;
+}
+
+// ---------- init ----------
+renderJournal();
+renderRules();
+loadCapitalForm();
+renderExposure();
+</script>
+</body>
+</html>
