@@ -177,6 +177,8 @@
   #auth-status.ok{color:var(--green);}
   .userbox{display:flex; align-items:center; gap:12px;}
   .userbox .email{color:var(--text-dim); font-size:12px;}
+  .setup-row{display:grid; grid-template-columns:1fr 100px auto; gap:8px; align-items:center; margin-bottom:8px;}
+  .setup-row input{margin-top:0;}
 </style>
 </head>
 <body>
@@ -212,6 +214,7 @@
   <div class="tab active" data-view="journal">Journal</div>
   <div class="tab" data-view="rules">Playbook</div>
   <div class="tab" data-view="exposure">Exposure</div>
+  <div class="tab" data-view="regime">Market Regime</div>
 </div>
 
 <main>
@@ -246,9 +249,16 @@
           <div><label>Stop Loss</label><input id="f-sl" type="number" step="any"></div>
           <div><label>Target</label><input id="f-target" type="number" step="any"></div>
         </div>
-        <div class="row2">
+        <div class="row3">
           <div><label>Trailing Rule</label><input id="f-trail" placeholder="e.g. Trail below prior swing low"></div>
-          <div><label>Setup / Thesis Tag</label><input id="f-setup" placeholder="e.g. Breakout"></div>
+          <div><label>Setup / Thesis</label><select id="f-setup"></select></div>
+          <div><label>Market Cap</label>
+            <select id="f-marketcap">
+              <option>Large Cap</option>
+              <option>Mid Cap</option>
+              <option>Small Cap</option>
+            </select>
+          </div>
         </div>
         <label>Notes</label>
         <textarea id="f-notes" placeholder="Why this trade, what you're watching..."></textarea>
@@ -280,6 +290,18 @@
       <button onclick="saveRules()">Save Playbook</button>
       <span class="save-note" id="rules-saved"></span>
     </div>
+
+    <div class="panel">
+      <h2>Trade Setups &amp; Multipliers</h2>
+      <div style="color:var(--text-dim); margin-bottom:10px;">
+        These are the options in the Journal's "Setup / Thesis" dropdown. The multiplier scales the suggested
+        position size for trades tagged with that setup (1.0 = no change).
+      </div>
+      <div id="setup-options-list"></div>
+      <button class="ghost small" onclick="addSetupOptionRow()">+ Add Setup</button>
+      <button onclick="saveSetupOptions()">Save Setups</button>
+      <span class="save-note" id="setups-saved"></span>
+    </div>
   </div>
 
   <!-- EXPOSURE -->
@@ -295,6 +317,21 @@
         <div><label>Max Leverage — Commodity</label><input id="cap-lev-comm" type="number" step="any"></div>
         <div><label>Max Risk per Trade (%)</label><input id="cap-risk-trade" type="number" step="any"></div>
       </div>
+
+      <div style="color:var(--text-dim); margin-top:16px; padding-top:12px; border-top:1px solid var(--line);">
+        Position Sizing Multipliers — applied on top of "Max Risk per Trade" to suggest a size for each new trade,
+        based on its market-cap class and the current market regime. Tune these as you learn what works.
+      </div>
+      <div class="row3">
+        <div><label>Mult — Large Cap</label><input id="cap-mult-large" type="number" step="any"></div>
+        <div><label>Mult — Mid Cap</label><input id="cap-mult-mid" type="number" step="any"></div>
+        <div><label>Mult — Small Cap</label><input id="cap-mult-small" type="number" step="any"></div>
+      </div>
+      <div class="row3">
+        <div><label>Mult — Risk-On</label><input id="cap-mult-riskon" type="number" step="any"></div>
+        <div><label>Mult — Neutral</label><input id="cap-mult-neutral" type="number" step="any"></div>
+        <div><label>Mult — Risk-Off</label><input id="cap-mult-riskoff" type="number" step="any"></div>
+      </div>
       <button onclick="saveCapital()">Save</button>
       <span class="save-note" id="cap-saved"></span>
     </div>
@@ -302,6 +339,29 @@
     <div class="panel">
       <h2>Current Exposure (from open positions)</h2>
       <div id="exposure-table"></div>
+    </div>
+  </div>
+
+  <!-- MARKET REGIME -->
+  <div class="view" id="view-regime">
+    <div class="statgrid" id="regime-statgrid"></div>
+
+    <div class="panel">
+      <h2>Today's Snapshot</h2>
+      <div class="row2">
+        <div><label>Put-Call Ratio (manual — not auto-fetchable yet)</label><input id="regime-pcr" type="number" step="any"></div>
+        <div><label>Fetched At</label><input id="regime-fetched" disabled></div>
+      </div>
+      <label>Notes</label>
+      <textarea id="regime-notes" placeholder="What's driving today's read..."></textarea>
+      <button onclick="saveRegimeSnapshot()">Save Today's Snapshot</button>
+      <button class="ghost small" onclick="fetchRegimeLive()">Refresh from NSE</button>
+      <span class="save-note" id="regime-saved"></span>
+    </div>
+
+    <div class="panel">
+      <h2>History</h2>
+      <div id="regime-history"></div>
     </div>
   </div>
 
@@ -317,12 +377,16 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let session = null;
 
-function emptyRules(){ return { sizing:'', stops:'', trailing:'', targets:'', leverage:'', setups:'', checklist:'', nonnegotiables:'' }; }
-function emptyCapital(){ return { total:'', levEquity:'', levFno:'', levComm:'', riskPerTrade:'' }; }
+const DEFAULT_SETUP_OPTIONS = ['Cup & Handle','Rectangle Breakout','Multiyear Resistance','Head & Shoulders','Macro Thesis'];
+function emptyRules(){ return { sizing:'', stops:'', trailing:'', targets:'', leverage:'', setups:'', checklist:'', nonnegotiables:'', setupOptions: DEFAULT_SETUP_OPTIONS.slice(), setupMultipliers: {} }; }
+function emptyCapital(){ return { total:'', levEquity:'', levFno:'', levComm:'', riskPerTrade:'', multLargeCap:1.0, multMidCap:0.8, multSmallCap:0.5, multRiskOn:1.2, multNeutral:1.0, multRiskOff:0.6 }; }
 
 let trades = [];
 let rules = emptyRules();
 let capital = emptyCapital();
+let liveRegime = {};
+let regimeHistory = [];
+let currentRegime = null;
 
 // ---------- auth ----------
 let authMode = 'signin';
@@ -382,7 +446,7 @@ async function fetchTrades(){
     id:t.id, segment:t.segment, direction:t.direction, instrument:t.instrument,
     entry:numOrNaN(t.entry), qty:numOrNaN(t.qty), entryDate:t.entry_date,
     sl:numOrNaN(t.sl), target:numOrNaN(t.target),
-    trail:t.trail, setup:t.setup, notes:t.notes, status:t.status,
+    trail:t.trail, setup:t.setup, marketCap:t.market_cap, notes:t.notes, status:t.status,
     exit:numOrNaN(t.exit), exitDate:t.exit_date, checklist:t.checklist||{}
   }));
 }
@@ -391,23 +455,29 @@ async function fetchRules(){
   rules = data ? {
     sizing:data.sizing||'', stops:data.stops||'', trailing:data.trailing||'',
     targets:data.targets||'', leverage:data.leverage||'', setups:data.setups||'',
-    checklist:data.checklist||'', nonnegotiables:data.nonnegotiables||''
+    checklist:data.checklist||'', nonnegotiables:data.nonnegotiables||'',
+    setupOptions: (data.setup_options && data.setup_options.length) ? data.setup_options : DEFAULT_SETUP_OPTIONS.slice(),
+    setupMultipliers: data.setup_multipliers || {}
   } : emptyRules();
 }
 async function fetchCapital(){
   const { data } = await sb.from('capital').select('*').eq('user_id', session.user.id).maybeSingle();
   capital = data ? {
     total:data.total, levEquity:data.lev_equity, levFno:data.lev_fno,
-    levComm:data.lev_comm, riskPerTrade:data.risk_per_trade
+    levComm:data.lev_comm, riskPerTrade:data.risk_per_trade,
+    multLargeCap:data.mult_large_cap, multMidCap:data.mult_mid_cap, multSmallCap:data.mult_small_cap,
+    multRiskOn:data.mult_risk_on, multNeutral:data.mult_neutral, multRiskOff:data.mult_risk_off
   } : emptyCapital();
 }
 async function loadAllData(){
   document.getElementById('open-positions').innerHTML = '<div class="empty">Loading…</div>';
   document.getElementById('closed-trades').innerHTML = '<div class="empty">Loading…</div>';
   document.getElementById('exposure-table').innerHTML = '<div class="empty">Loading…</div>';
-  await Promise.all([fetchTrades(), fetchRules(), fetchCapital()]);
+  await Promise.all([fetchTrades(), fetchRules(), fetchCapital(), fetchLatestRegime()]);
   renderJournal();
   renderRules();
+  renderSetupOptions();
+  populateSetupDropdown();
   loadCapitalForm();
   renderExposure();
 }
@@ -420,6 +490,7 @@ document.querySelectorAll('.tab').forEach(t=>{
     t.classList.add('active');
     document.getElementById('view-'+t.dataset.view).classList.add('active');
     if(t.dataset.view==='exposure') renderExposure();
+    if(t.dataset.view==='regime'){ fetchRegimeLive(); fetchRegimeHistory(); }
   });
 });
 
@@ -449,7 +520,8 @@ async function addTrade(){
     sl: parseFloat(document.getElementById('f-sl').value),
     target: parseFloat(document.getElementById('f-target').value),
     trail: document.getElementById('f-trail').value.trim(),
-    setup: document.getElementById('f-setup').value.trim(),
+    setup: document.getElementById('f-setup').value,
+    market_cap: document.getElementById('f-marketcap').value,
     notes: document.getElementById('f-notes').value.trim(),
     status: 'open',
     exit: null, exit_date: null,
@@ -465,10 +537,10 @@ async function addTrade(){
     id:data.id, segment:data.segment, direction:data.direction, instrument:data.instrument,
     entry:numOrNaN(data.entry), qty:numOrNaN(data.qty), entryDate:data.entry_date,
     sl:numOrNaN(data.sl), target:numOrNaN(data.target),
-    trail:data.trail, setup:data.setup, notes:data.notes, status:data.status,
+    trail:data.trail, setup:data.setup, marketCap:data.market_cap, notes:data.notes, status:data.status,
     exit:numOrNaN(data.exit), exitDate:data.exit_date, checklist:data.checklist||{}
   });
-  ['f-instrument','f-entry','f-qty','f-sl','f-target','f-trail','f-setup','f-notes'].forEach(id=>document.getElementById(id).value='');
+  ['f-instrument','f-entry','f-qty','f-sl','f-target','f-trail','f-notes'].forEach(id=>document.getElementById(id).value='');
   renderJournal();
 }
 
@@ -507,6 +579,39 @@ function rMultiple(t){
   return p / risk;
 }
 
+// ---------- position sizing suggestion ----------
+// Deviation thresholds (1.5x over / 0.5x under) are v1 code constants, not user-editable —
+// only the multipliers feeding suggestedRiskPct are. See nse-market-data skill for the formula.
+function marketCapMult(mc){
+  if(mc==='Large Cap') return capital.multLargeCap;
+  if(mc==='Mid Cap') return capital.multMidCap;
+  if(mc==='Small Cap') return capital.multSmallCap;
+  return 1.0; // unknown/legacy trades with no market_cap
+}
+function regimeMult(label){
+  if(label==='Risk-On') return capital.multRiskOn;
+  if(label==='Risk-Off') return capital.multRiskOff;
+  return capital.multNeutral;
+}
+function suggestedRiskPct(t){
+  const setupMult = rules.setupMultipliers[t.setup] ?? 1.0;
+  const label = currentRegime ? currentRegime.regimeLabel : 'Neutral';
+  return (capital.riskPerTrade||0) * setupMult * marketCapMult(t.marketCap) * regimeMult(label);
+}
+function actualRiskPct(t){
+  if(isNaN(t.sl) || !capital.total) return null;
+  const riskAmt = Math.abs(t.entry - t.sl) * t.qty;
+  return (riskAmt / capital.total) * 100;
+}
+function sizeFlag(t){
+  const suggested = suggestedRiskPct(t);
+  const actual = actualRiskPct(t);
+  if(actual==null || !suggested) return '-';
+  if(actual > suggested*1.5) return `<span class="flag warn">OVERSIZED</span> <span style="color:var(--text-dim)">(sugg ${suggested.toFixed(1)}%, actual ${actual.toFixed(1)}%)</span>`;
+  if(actual < suggested*0.5) return `<span class="flag">undersized</span> <span style="color:var(--text-dim)">(sugg ${suggested.toFixed(1)}%)</span>`;
+  return `<span class="ok">OK</span>`;
+}
+
 function renderJournal(){
   // open positions
   const open = trades.filter(t=>t.status==='open');
@@ -514,7 +619,7 @@ function renderJournal(){
   if(open.length===0){
     openEl.innerHTML = '<div class="empty">No open positions.</div>';
   } else {
-    openEl.innerHTML = '<table><tr><th>Instrument</th><th>Seg</th><th>Dir</th><th>Entry</th><th>SL</th><th>Target</th><th>Trail</th><th></th></tr>' +
+    openEl.innerHTML = '<table><tr><th>Instrument</th><th>Seg</th><th>Dir</th><th>Entry</th><th>SL</th><th>Target</th><th>Trail</th><th>Size</th><th></th></tr>' +
       open.map(t=>`<tr>
         <td>${t.instrument}</td>
         <td><span class="pill ${segClass(t.segment)}">${t.segment}</span></td>
@@ -523,6 +628,7 @@ function renderJournal(){
         <td>${isNaN(t.sl)?'-':t.sl}</td>
         <td>${isNaN(t.target)?'-':t.target}</td>
         <td style="color:var(--text-dim)">${t.trail||'-'}</td>
+        <td style="font-size:11px">${sizeFlag(t)}</td>
         <td><button class="ghost small" onclick="closeTradePrompt('${t.id}')">Close</button></td>
       </tr>`).join('') + '</table>';
   }
@@ -586,12 +692,60 @@ function renderRules(){
   `).join('');
 }
 async function saveRules(){
+  const payload = { user_id: session.user.id };
   ruleFields.forEach(f=>{
     rules[f.key] = document.getElementById('rule-'+f.key).value;
+    payload[f.key] = rules[f.key];
   });
-  const { error } = await sb.from('rules').upsert({ user_id: session.user.id, ...rules }, { onConflict: 'user_id' });
+  const { error } = await sb.from('rules').upsert(payload, { onConflict: 'user_id' });
   if(error){ alert('Could not save playbook: '+error.message); return; }
   document.getElementById('rules-saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN');
+}
+
+// ---------- setup options ----------
+function populateSetupDropdown(){
+  const sel = document.getElementById('f-setup');
+  const current = sel.value;
+  sel.innerHTML = rules.setupOptions.map(name=>`<option>${name}</option>`).join('');
+  if(rules.setupOptions.includes(current)) sel.value = current;
+}
+function renderSetupOptions(){
+  document.getElementById('setup-options-list').innerHTML = rules.setupOptions.map((name,i)=>`
+    <div class="setup-row">
+      <input id="setup-name-${i}" value="${name}">
+      <input id="setup-mult-${i}" type="number" step="any" value="${rules.setupMultipliers[name] ?? 1.0}">
+      <button class="ghost small" onclick="removeSetupOptionRow(${i})">Remove</button>
+    </div>
+  `).join('');
+}
+function addSetupOptionRow(){
+  rules.setupOptions.push('');
+  renderSetupOptions();
+}
+function removeSetupOptionRow(i){
+  rules.setupOptions.splice(i,1);
+  renderSetupOptions();
+}
+async function saveSetupOptions(){
+  const names = [];
+  const mults = {};
+  rules.setupOptions.forEach((_,i)=>{
+    const name = document.getElementById('setup-name-'+i).value.trim();
+    if(!name) return;
+    const mult = parseFloat(document.getElementById('setup-mult-'+i).value);
+    names.push(name);
+    mults[name] = isNaN(mult) ? 1.0 : mult;
+  });
+  const { error } = await sb.from('rules').upsert(
+    { user_id: session.user.id, setup_options: names, setup_multipliers: mults },
+    { onConflict: 'user_id' }
+  );
+  if(error){ alert('Could not save setups: '+error.message); return; }
+  rules.setupOptions = names;
+  rules.setupMultipliers = mults;
+  renderSetupOptions();
+  populateSetupDropdown();
+  document.getElementById('setups-saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN');
 }
 
 // ---------- exposure ----------
@@ -601,6 +755,12 @@ function loadCapitalForm(){
   document.getElementById('cap-lev-fno').value = capital.levFno;
   document.getElementById('cap-lev-comm').value = capital.levComm;
   document.getElementById('cap-risk-trade').value = capital.riskPerTrade;
+  document.getElementById('cap-mult-large').value = capital.multLargeCap;
+  document.getElementById('cap-mult-mid').value = capital.multMidCap;
+  document.getElementById('cap-mult-small').value = capital.multSmallCap;
+  document.getElementById('cap-mult-riskon').value = capital.multRiskOn;
+  document.getElementById('cap-mult-neutral').value = capital.multNeutral;
+  document.getElementById('cap-mult-riskoff').value = capital.multRiskOff;
 }
 async function saveCapital(){
   capital = {
@@ -608,16 +768,25 @@ async function saveCapital(){
     levEquity: parseFloat(document.getElementById('cap-lev-equity').value)||0,
     levFno: parseFloat(document.getElementById('cap-lev-fno').value)||0,
     levComm: parseFloat(document.getElementById('cap-lev-comm').value)||0,
-    riskPerTrade: parseFloat(document.getElementById('cap-risk-trade').value)||0
+    riskPerTrade: parseFloat(document.getElementById('cap-risk-trade').value)||0,
+    multLargeCap: parseFloat(document.getElementById('cap-mult-large').value)||1.0,
+    multMidCap: parseFloat(document.getElementById('cap-mult-mid').value)||1.0,
+    multSmallCap: parseFloat(document.getElementById('cap-mult-small').value)||1.0,
+    multRiskOn: parseFloat(document.getElementById('cap-mult-riskon').value)||1.0,
+    multNeutral: parseFloat(document.getElementById('cap-mult-neutral').value)||1.0,
+    multRiskOff: parseFloat(document.getElementById('cap-mult-riskoff').value)||1.0
   };
   const { error } = await sb.from('capital').upsert({
     user_id: session.user.id,
     total: capital.total, lev_equity: capital.levEquity, lev_fno: capital.levFno,
-    lev_comm: capital.levComm, risk_per_trade: capital.riskPerTrade
+    lev_comm: capital.levComm, risk_per_trade: capital.riskPerTrade,
+    mult_large_cap: capital.multLargeCap, mult_mid_cap: capital.multMidCap, mult_small_cap: capital.multSmallCap,
+    mult_risk_on: capital.multRiskOn, mult_neutral: capital.multNeutral, mult_risk_off: capital.multRiskOff
   }, { onConflict: 'user_id' });
   if(error){ alert('Could not save capital settings: '+error.message); return; }
   document.getElementById('cap-saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN');
   renderExposure();
+  renderJournal();
 }
 
 function renderExposure(){
@@ -648,6 +817,133 @@ function renderExposure(){
   });
   document.getElementById('exposure-table').innerHTML =
     `<table><tr><th>Segment</th><th>Exposure (₹)</th><th>Leverage Used</th><th>Cap</th><th>Status</th></tr>${rows}</table>`;
+}
+
+// ---------- market regime ----------
+// v1 heuristic thresholds — provisional, tune by hand later; not yet exposed as a config UI.
+// See .claude/skills/nse-market-data/SKILL.md for the reasoning behind these numbers.
+function computeRegimeScore(s){
+  let score = 0;
+  if(!isNaN(s.vix)){
+    if(s.vix < 13) score += 1;
+    else if(s.vix > 25) score -= 2;
+    else if(s.vix > 18) score -= 1;
+  }
+  if(!isNaN(s.fiiNet)){
+    if(s.fiiNet > 1000) score += 1;
+    else if(s.fiiNet < -1000) score -= 1;
+  }
+  if(!isNaN(s.newHighs) && !isNaN(s.newLows)){
+    if(s.newHighs > s.newLows) score += 1;
+    else if(s.newLows > s.newHighs * 1.5) score -= 1;
+  }
+  if(s.pcr!=null && !isNaN(s.pcr)){
+    if(s.pcr > 1.2) score += 1;
+    else if(s.pcr < 0.8) score -= 1;
+  }
+  let label = 'Neutral';
+  if(score >= 2) label = 'Risk-On';
+  else if(score <= -2) label = 'Risk-Off';
+  return { score, label };
+}
+
+async function fetchRegimeLive(){
+  document.getElementById('regime-statgrid').innerHTML = '<div class="empty">Loading…</div>';
+  try{
+    const r = await fetch('/api/regime');
+    liveRegime = await r.json();
+  } catch(e){
+    liveRegime = { fetchError: e.message || String(e) };
+  }
+  renderRegimeTab();
+}
+
+async function fetchLatestRegime(){
+  const { data } = await sb.from('market_regime').select('*').order('snapshot_date', { ascending:false }).limit(1).maybeSingle();
+  currentRegime = data ? {
+    snapshotDate:data.snapshot_date, vix:numOrNaN(data.vix), fiiNet:numOrNaN(data.fii_net), diiNet:numOrNaN(data.dii_net),
+    newHighs:numOrNaN(data.new_highs), newLows:numOrNaN(data.new_lows), pcr:data.pcr, regimeLabel:data.regime_label, notes:data.notes||''
+  } : null;
+}
+
+async function fetchRegimeHistory(){
+  const { data, error } = await sb.from('market_regime').select('*').order('snapshot_date', { ascending:false }).limit(30);
+  regimeHistory = error ? [] : data.map(d=>({
+    snapshotDate:d.snapshot_date, vix:numOrNaN(d.vix), fiiNet:numOrNaN(d.fii_net), diiNet:numOrNaN(d.dii_net),
+    newHighs:numOrNaN(d.new_highs), newLows:numOrNaN(d.new_lows), pcr:d.pcr, regimeLabel:d.regime_label, notes:d.notes||''
+  }));
+  renderRegimeHistory();
+  // prefill today's already-saved snapshot (if any) so re-visiting today doesn't clobber it
+  const today = new Date().toISOString().slice(0,10);
+  const todayRow = regimeHistory.find(r=>r.snapshotDate===today);
+  if(todayRow){
+    document.getElementById('regime-pcr').value = todayRow.pcr==null ? '' : todayRow.pcr;
+    document.getElementById('regime-notes').value = todayRow.notes||'';
+  }
+}
+
+function renderRegimeTab(){
+  if(liveRegime.fetchError){
+    document.getElementById('regime-statgrid').innerHTML = `<div class="empty">Could not reach /api/regime: ${liveRegime.fetchError}</div>`;
+    return;
+  }
+  const pcrInput = parseFloat(document.getElementById('regime-pcr').value);
+  const scored = computeRegimeScore({
+    vix: numOrNaN(liveRegime.vix), fiiNet: numOrNaN(liveRegime.fiiNet),
+    newHighs: numOrNaN(liveRegime.newHighs), newLows: numOrNaN(liveRegime.newLows),
+    pcr: isNaN(pcrInput) ? null : pcrInput
+  });
+  document.getElementById('regime-fetched').value = liveRegime.fetchedAt ? new Date(liveRegime.fetchedAt).toLocaleTimeString('en-IN') : '';
+  const tile = (label, val, err) => `<div class="stat"><div class="num">${val==null?'-':val}</div><div class="lbl">${label}${err?' <span class=\"flag\">'+err+'</span>':''}</div></div>`;
+  document.getElementById('regime-statgrid').innerHTML =
+    tile('India VIX', liveRegime.vix, liveRegime.vixError) +
+    tile('FII Net (₹cr)', liveRegime.fiiNet, liveRegime.fiiDiiError) +
+    tile('DII Net (₹cr)', liveRegime.diiNet, liveRegime.fiiDiiError) +
+    tile('New Highs (52w)', liveRegime.newHighs, liveRegime.newHighsError) +
+    tile('New Lows (52w)', liveRegime.newLows, liveRegime.newLowsError) +
+    `<div class="stat"><div class="num">${scored.label}</div><div class="lbl">Regime (score ${scored.score})</div></div>`;
+}
+
+async function saveRegimeSnapshot(){
+  const pcrVal = parseFloat(document.getElementById('regime-pcr').value);
+  const pcr = isNaN(pcrVal) ? null : pcrVal;
+  const scored = computeRegimeScore({
+    vix: numOrNaN(liveRegime.vix), fiiNet: numOrNaN(liveRegime.fiiNet),
+    newHighs: numOrNaN(liveRegime.newHighs), newLows: numOrNaN(liveRegime.newLows), pcr
+  });
+  const row = {
+    user_id: session.user.id,
+    snapshot_date: new Date().toISOString().slice(0,10),
+    vix: liveRegime.vix ?? null, fii_net: liveRegime.fiiNet ?? null, dii_net: liveRegime.diiNet ?? null,
+    new_highs: liveRegime.newHighs ?? null, new_lows: liveRegime.newLows ?? null,
+    pcr, regime_label: scored.label, notes: document.getElementById('regime-notes').value.trim()
+  };
+  const { error } = await sb.from('market_regime').upsert(row, { onConflict: 'user_id,snapshot_date' });
+  if(error){ alert('Could not save snapshot: '+error.message); return; }
+  document.getElementById('regime-saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN');
+  await fetchLatestRegime();
+  await fetchRegimeHistory();
+  renderJournal();
+}
+
+function renderRegimeHistory(){
+  const el = document.getElementById('regime-history');
+  if(regimeHistory.length===0){
+    el.innerHTML = '<div class="empty">No saved snapshots yet.</div>';
+    return;
+  }
+  el.innerHTML = '<table><tr><th>Date</th><th>VIX</th><th>FII Net</th><th>DII Net</th><th>New Highs</th><th>New Lows</th><th>PCR</th><th>Regime</th><th>Notes</th></tr>' +
+    regimeHistory.map(r=>`<tr>
+      <td>${r.snapshotDate}</td>
+      <td>${isNaN(r.vix)?'-':r.vix}</td>
+      <td>${isNaN(r.fiiNet)?'-':r.fiiNet}</td>
+      <td>${isNaN(r.diiNet)?'-':r.diiNet}</td>
+      <td>${isNaN(r.newHighs)?'-':r.newHighs}</td>
+      <td>${isNaN(r.newLows)?'-':r.newLows}</td>
+      <td>${r.pcr==null?'-':r.pcr}</td>
+      <td>${r.regimeLabel||'-'}</td>
+      <td style="color:var(--text-dim)">${r.notes||'-'}</td>
+    </tr>`).join('') + '</table>';
 }
 
 // ---------- init ----------
