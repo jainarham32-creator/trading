@@ -162,13 +162,50 @@
   .warn{color:var(--red); font-weight:bold;}
   .ok{color:var(--green);}
   .flag{color:var(--red); font-size:10px; margin-left:6px;}
+  #authgate{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  #authgate .panel{width:100%; max-width:340px; margin-bottom:0;}
+  #authgate .brand{color:var(--amber); letter-spacing:2px; font-size:13px; text-transform:uppercase; margin-bottom:16px; text-align:center;}
+  #authgate .authmode{display:flex; gap:8px; margin-bottom:4px;}
+  #auth-status{font-size:11px; margin-top:10px; min-height:14px;}
+  #auth-status.err{color:var(--red);}
+  #auth-status.ok{color:var(--green);}
+  .userbox{display:flex; align-items:center; gap:12px;}
+  .userbox .email{color:var(--text-dim); font-size:12px;}
 </style>
 </head>
 <body>
 
+<div id="authgate">
+  <div class="panel">
+    <div class="brand">Trading Desk</div>
+    <div class="authmode subtabs">
+      <div class="subtab active" id="mode-signin" onclick="setAuthMode('signin')">Log In</div>
+      <div class="subtab" id="mode-signup" onclick="setAuthMode('signup')">Sign Up</div>
+    </div>
+    <label>Email</label>
+    <input id="auth-email" type="email" autocomplete="username">
+    <label>Password</label>
+    <input id="auth-password" type="password" autocomplete="current-password">
+    <button id="auth-submit" onclick="submitAuth()">Log In</button>
+    <div id="auth-status"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+
 <div class="topbar">
   <div class="brand">Trading Desk / <b>Journal · Rules · Exposure</b></div>
-  <div class="clock" id="clock"></div>
+  <div class="userbox">
+    <span class="email" id="whoami"></span>
+    <button class="ghost small" onclick="signOut()">Log Out</button>
+    <div class="clock" id="clock"></div>
+  </div>
 </div>
 
 <div class="tabs">
@@ -216,7 +253,7 @@
         <label>Notes</label>
         <textarea id="f-notes" placeholder="Why this trade, what you're watching..."></textarea>
         <button onclick="addTrade()">Add Trade</button>
-        <div class="save-note">Saved locally in this browser. Nothing leaves your device.</div>
+        <div class="save-note">Saved to your account. Only you can see it.</div>
       </div>
 
       <div class="panel">
@@ -270,24 +307,110 @@
 
 </main>
 
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
-// ---------- storage ----------
-const LS_TRADES = 'td_trades';
-const LS_RULES = 'td_rules';
-const LS_CAPITAL = 'td_capital';
+// ---------- supabase ----------
+const SUPABASE_URL = 'https://xrvkzxqzfchcpudfyapt.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhydmt6eHF6ZmNoY3B1ZGZ5YXB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3MjEyMTgsImV4cCI6MjEwMDI5NzIxOH0.RwoYF7gy4Rf_DBeHIQxlCDKt20w93ufztybXG5g2424';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let session = null;
 
-function load(key, fallback){
-  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
-  catch(e){ return fallback; }
+function emptyRules(){ return { sizing:'', stops:'', trailing:'', targets:'', leverage:'', setups:'', checklist:'', nonnegotiables:'' }; }
+function emptyCapital(){ return { total:'', levEquity:'', levFno:'', levComm:'', riskPerTrade:'' }; }
+
+let trades = [];
+let rules = emptyRules();
+let capital = emptyCapital();
+
+// ---------- auth ----------
+let authMode = 'signin';
+function setAuthMode(mode){
+  authMode = mode;
+  document.getElementById('mode-signin').classList.toggle('active', mode==='signin');
+  document.getElementById('mode-signup').classList.toggle('active', mode==='signup');
+  document.getElementById('auth-submit').textContent = mode==='signin' ? 'Log In' : 'Sign Up';
+  setAuthStatus('');
 }
-function save(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+function setAuthStatus(msg, cls){
+  const el = document.getElementById('auth-status');
+  el.textContent = msg;
+  el.className = cls || '';
+}
+async function submitAuth(){
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  if(!email || !password){ setAuthStatus('Email and password are required.', 'err'); return; }
+  setAuthStatus(authMode==='signin' ? 'Logging in…' : 'Signing up…');
+  if(authMode==='signin'){
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if(error){ setAuthStatus(error.message, 'err'); return; }
+  } else {
+    const { error } = await sb.auth.signUp({ email, password });
+    if(error){ setAuthStatus(error.message, 'err'); return; }
+    setAuthStatus('Check your inbox to confirm your account, then log in.', 'ok');
+  }
+}
+async function signOut(){
+  await sb.auth.signOut();
+}
 
-let trades = load(LS_TRADES, []);
-let rules = load(LS_RULES, {
-  sizing: '', stops: '', trailing: '', targets: '', leverage: '',
-  setups: '', checklist: '', nonnegotiables: ''
+sb.auth.onAuthStateChange((event, newSession)=>{
+  session = newSession;
+  if(session){
+    document.getElementById('authgate').style.display = 'none';
+    document.getElementById('app').style.display = '';
+    document.getElementById('whoami').textContent = session.user.email;
+    loadAllData();
+  } else {
+    trades = []; rules = emptyRules(); capital = emptyCapital();
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('authgate').style.display = '';
+    document.getElementById('auth-password').value = '';
+  }
 });
-let capital = load(LS_CAPITAL, { total:'', levEquity:'', levFno:'', levComm:'', riskPerTrade:'' });
+
+// ---------- data loading ----------
+// Postgres NULL round-trips to JS null, not NaN — the rest of this file (isNaN checks
+// in renderJournal/pnl/rMultiple) expects "missing number" to be NaN, so normalize here.
+function numOrNaN(v){ return v==null ? NaN : v; }
+
+async function fetchTrades(){
+  const { data, error } = await sb.from('trades').select('*').order('created_at');
+  trades = error ? [] : data.map(t=>({
+    id:t.id, segment:t.segment, direction:t.direction, instrument:t.instrument,
+    entry:numOrNaN(t.entry), qty:numOrNaN(t.qty), entryDate:t.entry_date,
+    sl:numOrNaN(t.sl), target:numOrNaN(t.target),
+    trail:t.trail, setup:t.setup, notes:t.notes, status:t.status,
+    exit:numOrNaN(t.exit), exitDate:t.exit_date, checklist:t.checklist||{}
+  }));
+}
+async function fetchRules(){
+  const { data } = await sb.from('rules').select('*').eq('user_id', session.user.id).maybeSingle();
+  rules = data ? {
+    sizing:data.sizing||'', stops:data.stops||'', trailing:data.trailing||'',
+    targets:data.targets||'', leverage:data.leverage||'', setups:data.setups||'',
+    checklist:data.checklist||'', nonnegotiables:data.nonnegotiables||''
+  } : emptyRules();
+}
+async function fetchCapital(){
+  const { data } = await sb.from('capital').select('*').eq('user_id', session.user.id).maybeSingle();
+  capital = data ? {
+    total:data.total, levEquity:data.lev_equity, levFno:data.lev_fno,
+    levComm:data.lev_comm, riskPerTrade:data.risk_per_trade
+  } : emptyCapital();
+}
+async function loadAllData(){
+  document.getElementById('open-positions').innerHTML = '<div class="empty">Loading…</div>';
+  document.getElementById('closed-trades').innerHTML = '<div class="empty">Loading…</div>';
+  document.getElementById('exposure-table').innerHTML = '<div class="empty">Loading…</div>';
+  await Promise.all([fetchTrades(), fetchRules(), fetchCapital()]);
+  renderJournal();
+  renderRules();
+  loadCapitalForm();
+  renderExposure();
+}
 
 // ---------- tabs ----------
 document.querySelectorAll('.tab').forEach(t=>{
@@ -314,49 +437,60 @@ function segClass(seg){
   return 'fno';
 }
 
-function addTrade(){
-  const t = {
-    id: Date.now(),
+async function addTrade(){
+  const row = {
+    user_id: session.user.id,
     segment: document.getElementById('f-segment').value,
     direction: document.getElementById('f-direction').value,
     instrument: document.getElementById('f-instrument').value.trim(),
     entry: parseFloat(document.getElementById('f-entry').value),
     qty: parseFloat(document.getElementById('f-qty').value),
-    entryDate: document.getElementById('f-entrydate').value || new Date().toISOString().slice(0,10),
+    entry_date: document.getElementById('f-entrydate').value || new Date().toISOString().slice(0,10),
     sl: parseFloat(document.getElementById('f-sl').value),
     target: parseFloat(document.getElementById('f-target').value),
     trail: document.getElementById('f-trail').value.trim(),
     setup: document.getElementById('f-setup').value.trim(),
     notes: document.getElementById('f-notes').value.trim(),
     status: 'open',
-    exit: null, exitDate: null,
+    exit: null, exit_date: null,
     checklist: {}
   };
-  if(!t.instrument || isNaN(t.entry) || isNaN(t.qty)){
+  if(!row.instrument || isNaN(row.entry) || isNaN(row.qty)){
     alert('Instrument, entry price and quantity are required.');
     return;
   }
-  trades.push(t);
-  save(LS_TRADES, trades);
+  const { data, error } = await sb.from('trades').insert(row).select().single();
+  if(error){ alert('Could not save trade: '+error.message); return; }
+  trades.push({
+    id:data.id, segment:data.segment, direction:data.direction, instrument:data.instrument,
+    entry:numOrNaN(data.entry), qty:numOrNaN(data.qty), entryDate:data.entry_date,
+    sl:numOrNaN(data.sl), target:numOrNaN(data.target),
+    trail:data.trail, setup:data.setup, notes:data.notes, status:data.status,
+    exit:numOrNaN(data.exit), exitDate:data.exit_date, checklist:data.checklist||{}
+  });
   ['f-instrument','f-entry','f-qty','f-sl','f-target','f-trail','f-setup','f-notes'].forEach(id=>document.getElementById(id).value='');
   renderJournal();
 }
 
-function closeTradePrompt(id){
+async function closeTradePrompt(id){
   const t = trades.find(x=>x.id===id);
   const exit = prompt('Exit price for '+t.instrument+'?');
   if(exit===null || exit==='') return;
-  t.exit = parseFloat(exit);
-  t.exitDate = new Date().toISOString().slice(0,10);
+  const exitVal = parseFloat(exit);
+  const exitDate = new Date().toISOString().slice(0,10);
+  const { error } = await sb.from('trades').update({ exit: exitVal, exit_date: exitDate, status: 'closed' }).eq('id', id);
+  if(error){ alert('Could not close trade: '+error.message); return; }
+  t.exit = exitVal;
+  t.exitDate = exitDate;
   t.status = 'closed';
-  save(LS_TRADES, trades);
   renderJournal();
 }
 
-function deleteTrade(id){
+async function deleteTrade(id){
   if(!confirm('Delete this trade permanently?')) return;
+  const { error } = await sb.from('trades').delete().eq('id', id);
+  if(error){ alert('Could not delete trade: '+error.message); return; }
   trades = trades.filter(x=>x.id!==id);
-  save(LS_TRADES, trades);
   renderJournal();
 }
 
@@ -389,7 +523,7 @@ function renderJournal(){
         <td>${isNaN(t.sl)?'-':t.sl}</td>
         <td>${isNaN(t.target)?'-':t.target}</td>
         <td style="color:var(--text-dim)">${t.trail||'-'}</td>
-        <td><button class="ghost small" onclick="closeTradePrompt(${t.id})">Close</button></td>
+        <td><button class="ghost small" onclick="closeTradePrompt('${t.id}')">Close</button></td>
       </tr>`).join('') + '</table>';
   }
 
@@ -410,7 +544,7 @@ function renderJournal(){
           <td>${t.exit}</td>
           <td class="${p>=0?'pos':'neg'}">${p!=null?p.toFixed(2):'-'}</td>
           <td class="${r>=0?'pos':'neg'}">${r!=null?r.toFixed(2)+'R':'-'}</td>
-          <td><button class="ghost small" onclick="deleteTrade(${t.id})">Delete</button></td>
+          <td><button class="ghost small" onclick="deleteTrade('${t.id}')">Delete</button></td>
         </tr>`;
       }).join('') + '</table>';
   }
@@ -451,11 +585,12 @@ function renderRules(){
     </div>
   `).join('');
 }
-function saveRules(){
+async function saveRules(){
   ruleFields.forEach(f=>{
     rules[f.key] = document.getElementById('rule-'+f.key).value;
   });
-  save(LS_RULES, rules);
+  const { error } = await sb.from('rules').upsert({ user_id: session.user.id, ...rules }, { onConflict: 'user_id' });
+  if(error){ alert('Could not save playbook: '+error.message); return; }
   document.getElementById('rules-saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN');
 }
 
@@ -467,7 +602,7 @@ function loadCapitalForm(){
   document.getElementById('cap-lev-comm').value = capital.levComm;
   document.getElementById('cap-risk-trade').value = capital.riskPerTrade;
 }
-function saveCapital(){
+async function saveCapital(){
   capital = {
     total: parseFloat(document.getElementById('cap-total').value)||0,
     levEquity: parseFloat(document.getElementById('cap-lev-equity').value)||0,
@@ -475,7 +610,12 @@ function saveCapital(){
     levComm: parseFloat(document.getElementById('cap-lev-comm').value)||0,
     riskPerTrade: parseFloat(document.getElementById('cap-risk-trade').value)||0
   };
-  save(LS_CAPITAL, capital);
+  const { error } = await sb.from('capital').upsert({
+    user_id: session.user.id,
+    total: capital.total, lev_equity: capital.levEquity, lev_fno: capital.levFno,
+    lev_comm: capital.levComm, risk_per_trade: capital.riskPerTrade
+  }, { onConflict: 'user_id' });
+  if(error){ alert('Could not save capital settings: '+error.message); return; }
   document.getElementById('cap-saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN');
   renderExposure();
 }
@@ -511,10 +651,9 @@ function renderExposure(){
 }
 
 // ---------- init ----------
-renderJournal();
-renderRules();
-loadCapitalForm();
-renderExposure();
+// Rendering is driven by sb.auth.onAuthStateChange -> loadAllData() above,
+// once a session (or its absence) is known.
+setAuthMode('signin');
 </script>
 </body>
 </html>
