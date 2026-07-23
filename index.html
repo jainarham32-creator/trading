@@ -183,6 +183,16 @@
   .userbox .email{color:var(--text-dim); font-size:12px;}
   .setup-row{display:grid; grid-template-columns:1fr 100px auto; gap:8px; align-items:center; margin-bottom:8px;}
   .setup-row input{margin-top:0;}
+  .journal-layout{display:grid; grid-template-columns:2fr 1fr; gap:16px;}
+  @media (max-width:900px){.journal-layout{grid-template-columns:1fr;}}
+  .side-panel button{width:100%;}
+  .summary-strip{display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--line);}
+  .summary-strip .mix{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .summary-strip .lev{color:var(--text-dim); font-size:12px;}
+  .summary-strip .lev b{color:var(--amber); font-size:15px;}
+  .modal-backdrop{display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); align-items:center; justify-content:center; z-index:100; padding:20px;}
+  .modal-backdrop.active{display:flex;}
+  .modal-panel{width:100%; max-width:520px; max-height:90vh; overflow-y:auto; margin:0;}
 </style>
 </head>
 <body>
@@ -227,52 +237,16 @@
   <div class="view active" id="view-journal">
     <div class="statgrid" id="statgrid"></div>
 
-    <div class="grid">
-      <div class="panel">
-        <h2>Log a Trade</h2>
-        <div class="row3">
-          <div><label>Segment</label>
-            <select id="f-segment">
-              <option>Equity</option>
-              <option>F&O - Futures</option>
-              <option>F&O - Options</option>
-              <option>Commodity</option>
-            </select>
-          </div>
-          <div><label>Direction</label>
-            <select id="f-direction"><option>Long</option><option>Short</option></select>
-          </div>
-          <div><label>Instrument</label><input id="f-instrument" placeholder="e.g. NIFTY, RELIANCE"></div>
-        </div>
-        <div class="row3">
-          <div><label>Entry Price</label><input id="f-entry" type="number" step="any"></div>
-          <div><label>Quantity / Lots</label><input id="f-qty" type="number" step="any"></div>
-          <div><label>Entry Date</label><input id="f-entrydate" type="date"></div>
-        </div>
-        <div class="row2">
-          <div><label>Stop Loss</label><input id="f-sl" type="number" step="any"></div>
-          <div><label>Target</label><input id="f-target" type="number" step="any"></div>
-        </div>
-        <div class="row3">
-          <div><label>Trailing Rule</label><input id="f-trail" placeholder="e.g. Trail below prior swing low"></div>
-          <div><label>Setup / Thesis</label><select id="f-setup"></select></div>
-          <div><label>Market Cap</label>
-            <select id="f-marketcap">
-              <option>Large Cap</option>
-              <option>Mid Cap</option>
-              <option>Small Cap</option>
-            </select>
-          </div>
-        </div>
-        <label>Notes</label>
-        <textarea id="f-notes" placeholder="Why this trade, what you're watching..."></textarea>
-        <button onclick="addTrade()">Add Trade</button>
-        <div class="save-note">Saved to your account. Only you can see it.</div>
-      </div>
-
+    <div class="journal-layout">
       <div class="panel">
         <h2>Open Positions</h2>
+        <div class="summary-strip" id="journal-summary"></div>
         <div id="open-positions"></div>
+      </div>
+
+      <div class="panel side-panel">
+        <h2>Trade</h2>
+        <button onclick="openTradeModal()">+ Enter a Trade</button>
       </div>
     </div>
 
@@ -353,11 +327,8 @@
     <div class="panel">
       <h2>Today's Snapshot</h2>
       <div class="row2">
-        <div><label>Put-Call Ratio (manual — not auto-fetchable yet)</label><input id="regime-pcr" type="number" step="any"></div>
         <div><label>Fetched At</label><input id="regime-fetched" disabled></div>
       </div>
-      <label>Notes</label>
-      <textarea id="regime-notes" placeholder="What's driving today's read..."></textarea>
       <button onclick="saveRegimeSnapshot()">Save Today's Snapshot</button>
       <button class="ghost small" onclick="fetchRegimeLive()">Refresh from NSE</button>
       <span class="save-note" id="regime-saved"></span>
@@ -370,6 +341,51 @@
   </div>
 
 </main>
+
+<div class="modal-backdrop" id="trade-modal-backdrop" onclick="if(event.target===this) closeTradeModal()">
+  <div class="panel modal-panel">
+    <h2>Log a Trade</h2>
+    <div class="row3">
+      <div><label>Segment</label>
+        <select id="f-segment">
+          <option>Equity</option>
+          <option>F&O - Futures</option>
+          <option>F&O - Options</option>
+          <option>Commodity</option>
+        </select>
+      </div>
+      <div><label>Direction</label>
+        <select id="f-direction"><option>Long</option><option>Short</option></select>
+      </div>
+      <div><label>Instrument</label><input id="f-instrument" list="instrument-list" autocomplete="off" placeholder="e.g. NIFTY, RELIANCE"><datalist id="instrument-list"></datalist></div>
+    </div>
+    <div class="row3">
+      <div><label>Entry Price</label><input id="f-entry" type="number" step="any"></div>
+      <div><label>Quantity / Lots</label><input id="f-qty" type="number" step="any"></div>
+      <div><label>Entry Date</label><input id="f-entrydate" type="date"></div>
+    </div>
+    <div class="row2">
+      <div><label>Stop Loss</label><input id="f-sl" type="number" step="any"></div>
+      <div><label>Target</label><input id="f-target" type="number" step="any"></div>
+    </div>
+    <div class="row3">
+      <div><label>Trailing Rule</label><input id="f-trail" placeholder="e.g. Trail below prior swing low"></div>
+      <div><label>Setup / Thesis</label><select id="f-setup"></select></div>
+      <div><label>Market Cap</label>
+        <select id="f-marketcap">
+          <option>Large Cap</option>
+          <option>Mid Cap</option>
+          <option>Small Cap</option>
+        </select>
+      </div>
+    </div>
+    <label>Notes</label>
+    <textarea id="f-notes" placeholder="Why this trade, what you're watching..."></textarea>
+    <button onclick="addTrade()">Add Trade</button>
+    <button class="ghost small" onclick="closeTradeModal()">Cancel</button>
+    <div class="save-note">Saved to your account. Only you can see it.</div>
+  </div>
+</div>
 
 </div>
 
@@ -512,6 +528,21 @@ function segClass(seg){
   return 'fno';
 }
 
+// ---------- trade modal ----------
+function openTradeModal(){
+  document.getElementById('trade-modal-backdrop').classList.add('active');
+  if(!document.getElementById('f-entrydate').value){
+    document.getElementById('f-entrydate').value = new Date().toISOString().slice(0,10);
+  }
+  document.getElementById('f-instrument').focus();
+}
+function closeTradeModal(){
+  document.getElementById('trade-modal-backdrop').classList.remove('active');
+}
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape') closeTradeModal();
+});
+
 async function addTrade(){
   const row = {
     user_id: session.user.id,
@@ -546,6 +577,7 @@ async function addTrade(){
   });
   ['f-instrument','f-entry','f-qty','f-sl','f-target','f-trail','f-notes'].forEach(id=>document.getElementById(id).value='');
   renderJournal();
+  closeTradeModal();
 }
 
 async function closeTradePrompt(id){
@@ -673,6 +705,24 @@ function renderJournal(){
     <div class="stat"><div class="num">${winRate}</div><div class="lbl">Win Rate</div></div>
     <div class="stat"><div class="num">${expectancy}</div><div class="lbl">Expectancy</div></div>
   `;
+
+  renderJournalSummary();
+}
+
+function renderJournalSummary(){
+  const segs = computeExposureBySegment();
+  const totalExp = Object.values(segs).reduce((a,s)=>a+s.exp,0);
+  const totalCap = capital.total || 0;
+  const leverUsed = totalCap ? (totalExp/totalCap) : 0;
+  const mix = Object.keys(segs)
+    .filter(seg=>segs[seg].exp>0)
+    .map(seg=>{
+      const pct = totalExp ? (segs[seg].exp/totalExp*100) : 0;
+      return `<span class="pill ${segClass(seg)}">${seg} ${pct.toFixed(0)}%</span>`;
+    }).join('');
+  document.getElementById('journal-summary').innerHTML = totalExp
+    ? `<div class="mix">${mix}</div><div class="lev">Leverage Used <b>${totalCap?leverUsed.toFixed(2)+'x':'-'}</b></div>`
+    : '<span style="color:var(--text-dim)">No open exposure.</span>';
 }
 
 // ---------- rules ----------
@@ -793,7 +843,7 @@ async function saveCapital(){
   renderJournal();
 }
 
-function renderExposure(){
+function computeExposureBySegment(){
   const open = trades.filter(t=>t.status==='open');
   const segs = {
     'Equity': {cap: capital.levEquity, exp:0},
@@ -805,6 +855,11 @@ function renderExposure(){
     const notional = (t.entry||0) * (t.qty||0);
     if(segs[t.segment]) segs[t.segment].exp += notional;
   });
+  return segs;
+}
+
+function renderExposure(){
+  const segs = computeExposureBySegment();
   const totalCap = capital.total || 0;
   let rows = '';
   Object.keys(segs).forEach(seg=>{
@@ -877,13 +932,6 @@ async function fetchRegimeHistory(){
     newHighs:numOrNaN(d.new_highs), newLows:numOrNaN(d.new_lows), pcr:d.pcr, regimeLabel:d.regime_label, notes:d.notes||''
   }));
   renderRegimeHistory();
-  // prefill today's already-saved snapshot (if any) so re-visiting today doesn't clobber it
-  const today = new Date().toISOString().slice(0,10);
-  const todayRow = regimeHistory.find(r=>r.snapshotDate===today);
-  if(todayRow){
-    document.getElementById('regime-pcr').value = todayRow.pcr==null ? '' : todayRow.pcr;
-    document.getElementById('regime-notes').value = todayRow.notes||'';
-  }
 }
 
 function renderRegimeTab(){
@@ -891,26 +939,26 @@ function renderRegimeTab(){
     document.getElementById('regime-statgrid').innerHTML = `<div class="empty">Could not reach /api/regime: ${liveRegime.fetchError}</div>`;
     return;
   }
-  const pcrInput = parseFloat(document.getElementById('regime-pcr').value);
   const scored = computeRegimeScore({
     vix: numOrNaN(liveRegime.vix), fiiNet: numOrNaN(liveRegime.fiiNet),
     newHighs: numOrNaN(liveRegime.newHighs), newLows: numOrNaN(liveRegime.newLows),
-    pcr: isNaN(pcrInput) ? null : pcrInput
+    pcr: liveRegime.pcr ?? null
   });
   document.getElementById('regime-fetched').value = liveRegime.fetchedAt ? new Date(liveRegime.fetchedAt).toLocaleTimeString('en-IN') : '';
-  const tile = (label, val, err) => `<div class="stat"><div class="num">${val==null?'-':val}</div><div class="lbl">${label}${err?' <span class=\"flag\">'+err+'</span>':''}</div></div>`;
+  const tile = (label, val, err) => `<div class="stat"><div class="num">${val==null?'-':(typeof val==='number'&&!Number.isInteger(val)?val.toFixed(2):val)}</div><div class="lbl">${label}${err?' <span class=\"flag\">'+err+'</span>':''}</div></div>`;
   document.getElementById('regime-statgrid').innerHTML =
     tile('India VIX', liveRegime.vix, liveRegime.vixError) +
     tile('FII Net (₹cr)', liveRegime.fiiNet, liveRegime.fiiDiiError) +
     tile('DII Net (₹cr)', liveRegime.diiNet, liveRegime.fiiDiiError) +
     tile('New Highs (52w)', liveRegime.newHighs, liveRegime.newHighsError) +
     tile('New Lows (52w)', liveRegime.newLows, liveRegime.newLowsError) +
+    tile('PCR', liveRegime.pcr, liveRegime.pcrError) +
+    tile('FII Options PCR', liveRegime.fiiOptionsPcr, liveRegime.fiiOptionsPcrError) +
     `<div class="stat"><div class="num">${scored.label}</div><div class="lbl">Regime (score ${scored.score})</div></div>`;
 }
 
 async function saveRegimeSnapshot(){
-  const pcrVal = parseFloat(document.getElementById('regime-pcr').value);
-  const pcr = isNaN(pcrVal) ? null : pcrVal;
+  const pcr = liveRegime.pcr ?? null;
   const scored = computeRegimeScore({
     vix: numOrNaN(liveRegime.vix), fiiNet: numOrNaN(liveRegime.fiiNet),
     newHighs: numOrNaN(liveRegime.newHighs), newLows: numOrNaN(liveRegime.newLows), pcr
@@ -920,7 +968,7 @@ async function saveRegimeSnapshot(){
     snapshot_date: new Date().toISOString().slice(0,10),
     vix: liveRegime.vix ?? null, fii_net: liveRegime.fiiNet ?? null, dii_net: liveRegime.diiNet ?? null,
     new_highs: liveRegime.newHighs ?? null, new_lows: liveRegime.newLows ?? null,
-    pcr, regime_label: scored.label, notes: document.getElementById('regime-notes').value.trim()
+    pcr, regime_label: scored.label
   };
   const { error } = await sb.from('market_regime').upsert(row, { onConflict: 'user_id,snapshot_date' });
   if(error){ alert('Could not save snapshot: '+error.message); return; }
@@ -936,7 +984,7 @@ function renderRegimeHistory(){
     el.innerHTML = '<div class="empty">No saved snapshots yet.</div>';
     return;
   }
-  el.innerHTML = '<table><tr><th>Date</th><th>VIX</th><th>FII Net</th><th>DII Net</th><th>New Highs</th><th>New Lows</th><th>PCR</th><th>Regime</th><th>Notes</th></tr>' +
+  el.innerHTML = '<table><tr><th>Date</th><th>VIX</th><th>FII Net</th><th>DII Net</th><th>New Highs</th><th>New Lows</th><th>PCR</th><th>Regime</th></tr>' +
     regimeHistory.map(r=>`<tr>
       <td>${r.snapshotDate}</td>
       <td>${isNaN(r.vix)?'-':r.vix}</td>
@@ -944,9 +992,8 @@ function renderRegimeHistory(){
       <td>${isNaN(r.diiNet)?'-':r.diiNet}</td>
       <td>${isNaN(r.newHighs)?'-':r.newHighs}</td>
       <td>${isNaN(r.newLows)?'-':r.newLows}</td>
-      <td>${r.pcr==null?'-':r.pcr}</td>
+      <td>${r.pcr==null?'-':r.pcr.toFixed(2)}</td>
       <td>${r.regimeLabel||'-'}</td>
-      <td style="color:var(--text-dim)">${r.notes||'-'}</td>
     </tr>`).join('') + '</table>';
 }
 
@@ -954,6 +1001,13 @@ function renderRegimeHistory(){
 // Rendering is driven by sb.auth.onAuthStateChange -> loadAllData() above,
 // once a session (or its absence) is known.
 setAuthMode('signin');
+
+// Instrument autocomplete — a static, occasionally-refreshed asset (NSE rebalances the
+// NIFTY 500 quarterly), not fetched live. No auth needed, so kick off immediately.
+fetch('/nifty500.json').then(r=>r.json()).then(list=>{
+  document.getElementById('instrument-list').innerHTML =
+    list.map(s=>`<option value="${s.symbol}">${s.name}</option>`).join('');
+}).catch(()=>{ /* datalist just stays empty; free-text entry still works */ });
 </script>
 </body>
 </html>
