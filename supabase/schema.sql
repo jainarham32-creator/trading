@@ -1,8 +1,9 @@
 -- Trading Desk — Supabase schema + RLS
 -- Run once in the Supabase SQL Editor (Project → SQL Editor → New query) for a FRESH project only.
 -- If a project already has these tables with data, do NOT run this file — use the incremental
--- migration files in this folder instead (e.g. migration_002_setup_regime_sizing.sql), which are
--- additive (ALTER TABLE ADD COLUMN IF NOT EXISTS / CREATE TABLE IF NOT EXISTS) and safe to re-run.
+-- migration files in this folder instead (migration_002_setup_regime_sizing.sql,
+-- migration_003_ema_breadth.sql), which are additive (ALTER TABLE ADD COLUMN IF NOT EXISTS /
+-- CREATE TABLE IF NOT EXISTS) and safe to re-run.
 
 create extension if not exists pgcrypto;
 
@@ -74,19 +75,39 @@ create table public.market_regime (
   dii_net       numeric,
   new_highs     integer,
   new_lows      integer,
-  pcr           numeric,       -- manual entry only, see nse-market-data skill
+  pcr           numeric,       -- auto-fetched via NSE participant-OI data, see nse-market-data skill
   regime_label  text,          -- 'Risk-On' | 'Neutral' | 'Risk-Off'
-  notes         text default '',
+  notes         text default '', -- unused by the UI (removed) but kept so old rows aren't orphaned
   created_at    timestamptz not null default now(),
   unique (user_id, snapshot_date)
 );
 create index market_regime_user_date_idx on public.market_regime(user_id, snapshot_date desc);
 
+-- ---------- ema_state (one row per user, a jsonb map — NOT one row per stock) ----------
+create table public.ema_state (
+  user_id    uuid primary key references auth.users(id) on delete cascade,
+  state      jsonb not null default '{}'::jsonb,  -- { "RELIANCE": {"ema50":.., "ema200":.., "lastClose":.., "lastDate":".."}, ... }
+  updated_at timestamptz not null default now()
+);
+
+-- ---------- market_breadth_history (date-keyed, auto-updated — see nse-market-data skill) ----------
+create table public.market_breadth_history (
+  user_id          uuid not null references auth.users(id) on delete cascade,
+  snapshot_date    date not null,
+  pct_above_50ema  numeric,
+  pct_above_200ema numeric,
+  updated_at       timestamptz not null default now(),
+  primary key (user_id, snapshot_date)
+);
+create index market_breadth_history_user_date_idx on public.market_breadth_history(user_id, snapshot_date desc);
+
 -- ---------- Row Level Security: every table, same 4-policy pattern ----------
-alter table public.trades        enable row level security;
-alter table public.rules         enable row level security;
-alter table public.capital       enable row level security;
-alter table public.market_regime enable row level security;
+alter table public.trades                enable row level security;
+alter table public.rules                 enable row level security;
+alter table public.capital               enable row level security;
+alter table public.market_regime         enable row level security;
+alter table public.ema_state             enable row level security;
+alter table public.market_breadth_history enable row level security;
 
 create policy "trades_select_own" on public.trades
   for select using (auth.uid() = user_id);
@@ -122,4 +143,22 @@ create policy "market_regime_insert_own" on public.market_regime
 create policy "market_regime_update_own" on public.market_regime
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "market_regime_delete_own" on public.market_regime
+  for delete using (auth.uid() = user_id);
+
+create policy "ema_state_select_own" on public.ema_state
+  for select using (auth.uid() = user_id);
+create policy "ema_state_insert_own" on public.ema_state
+  for insert with check (auth.uid() = user_id);
+create policy "ema_state_update_own" on public.ema_state
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "ema_state_delete_own" on public.ema_state
+  for delete using (auth.uid() = user_id);
+
+create policy "market_breadth_history_select_own" on public.market_breadth_history
+  for select using (auth.uid() = user_id);
+create policy "market_breadth_history_insert_own" on public.market_breadth_history
+  for insert with check (auth.uid() = user_id);
+create policy "market_breadth_history_update_own" on public.market_breadth_history
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "market_breadth_history_delete_own" on public.market_breadth_history
   for delete using (auth.uid() = user_id);

@@ -24,14 +24,16 @@ The UMD bundle attaches itself to `window.supabase` (the SDK namespace, exposing
 - `loadAllData()` runs after every successful sign-in and fans out to `fetchTrades()`/`fetchRules()`/`fetchCapital()`/`fetchLatestRegime()`, then calls the render functions (`renderJournal`, `renderRules`, `renderSetupOptions`, `populateSetupDropdown`, `loadCapitalForm`, `renderExposure`).
 
 ## Schema reference
-Full DDL: `supabase/schema.sql` (fresh-install baseline) + `supabase/migration_002_setup_regime_sizing.sql` (what was actually run against the live project). Summary:
+Full DDL: `supabase/schema.sql` (fresh-install baseline) + `supabase/migration_002_setup_regime_sizing.sql`/`migration_003_ema_breadth.sql` (what was actually run against the live project). Summary:
 
-| Table           | Key                   | Notes |
-|-----------------|-----------------------|-------|
-| `trades`        | `id uuid` (PK, server-generated) | One row per trade. `user_id` FK. `setup` (text, one of `rules.setup_options`), `market_cap` (text: `'Large Cap'\|'Mid Cap'\|'Small Cap'`, nullable). |
-| `rules`         | `user_id uuid` (PK)   | One row per user. `setup_options` (jsonb array of strings), `setup_multipliers` (jsonb, `{name: multiplier}`) added alongside the original free-text playbook columns. |
-| `capital`       | `user_id uuid` (PK)   | One row per user. Original leverage caps + 6 position-sizing multiplier columns: `mult_large_cap`/`mult_mid_cap`/`mult_small_cap`, `mult_risk_on`/`mult_neutral`/`mult_risk_off`. |
-| `market_regime` | `id uuid` (PK) + `unique(user_id, snapshot_date)` | **First table that isn't one-row-per-user** — a date-keyed history. `pcr` is manual-entry only (see `nse-market-data` skill). Upsert with `onConflict:'user_id,snapshot_date'` so re-saving the same day overwrites. |
+| Table                    | Key                   | Notes |
+|--------------------------|-----------------------|-------|
+| `trades`                 | `id uuid` (PK, server-generated) | One row per trade. `user_id` FK. `setup` (text, one of `rules.setup_options`), `market_cap` (text: `'Large Cap'\|'Mid Cap'\|'Small Cap'`, nullable). |
+| `rules`                  | `user_id uuid` (PK)   | One row per user. `setup_options` (jsonb array of strings), `setup_multipliers` (jsonb, `{name: multiplier}`) added alongside the original free-text playbook columns. |
+| `capital`                | `user_id uuid` (PK)   | One row per user. Original leverage caps + 6 position-sizing multiplier columns: `mult_large_cap`/`mult_mid_cap`/`mult_small_cap`, `mult_risk_on`/`mult_neutral`/`mult_risk_off`. |
+| `market_regime`          | `id uuid` (PK) + `unique(user_id, snapshot_date)` | A date-keyed history, written only on an explicit "Save Today's Snapshot" click (no auto-save). `pcr` is now auto-fetched (see `nse-market-data` skill); `notes` column is unused by the UI (removed) but left in place. Upsert with `onConflict:'user_id,snapshot_date'`. |
+| `ema_state`               | `user_id uuid` (PK)   | One row per user holding a **jsonb map** of all ~500 NIFTY 500 symbols' `{ema50, ema200, lastClose, lastDate}` — not 500 rows, matches the `setup_options`-style jsonb-blob convention. |
+| `market_breadth_history` | `(user_id, snapshot_date)` (PK) | Date-keyed, but unlike `market_regime` this one **auto-updates** (no user click needed) — see `nse-market-data` skill for why it's a separate table from `market_regime` rather than shared columns. |
 
 Trade `id`s are Postgres `gen_random_uuid()`, **not** `Date.now()` — client never invents an id for `trades`. When interpolating an id into an `onclick="..."` template string, it must be quoted (`onclick="deleteTrade('${t.id}')"`) since UUIDs contain hyphens that break unquoted JS.
 
@@ -77,6 +79,6 @@ JS objects use camelCase (`entryDate`, `levEquity`, `riskPerTrade`, `multLargeCa
 - Open signup (not invite-only), email+password auth (not magic link) — real login/signup screen replaces the earlier "passcode lock" idea entirely.
 - Full per-user data isolation via RLS, not just client-side filtering.
 - `SUPABASE_URL`/`SUPABASE_ANON_KEY` are embedded directly in `index.html` client code — this is intentional and safe; the anon key is meant to be public, RLS is what actually protects data. **Never** put the `service_role` key anywhere in this repo or client code — including `api/regime.js`, which is a pure external-data proxy and never touches Supabase at all (snapshot saves happen client-side, authenticated as the user, same as every other table).
-- `market_regime` deliberately breaks the "one row per user" pattern every other table uses — it's a date-keyed history, written only when the user explicitly clicks "Save Today's Snapshot" (no cron, no auto-save on page load).
-- "Confirm email" setting and the Auth Site URL (should point at the deployed Vercel URL, not localhost) are configured in the Supabase dashboard (Authentication → Providers / URL Configuration) — not in code, so check there if signup/login redirects misbehave.
-- See `nse-market-data` skill for everything about `api/regime.js`, live market-data endpoints, the regime-scoring heuristic, and the position-sizing formula.
+- `market_regime` deliberately breaks the "one row per user" pattern every other table uses — it's a date-keyed history, written only when the user explicitly clicks "Save Today's Snapshot" (no cron, no auto-save on page load). `market_breadth_history` is a *different* date-keyed table specifically because it needs the opposite behavior (auto-updates on tab-open) — piggybacking it onto `market_regime` would have silently broken that no-auto-save invariant.
+- "Confirm email" setting and the Auth Site URL (should point at the deployed Vercel URL, not localhost) are configured in the Supabase dashboard (Authentication → Providers / URL Configuration) — not in code, so check there if signup/login redirects misbehave. This bit the user directly once: a password-reset email linked to `localhost` before the Site URL was fixed, and even after fixing it the app had no UI to actually complete a `PASSWORD_RECOVERY` session by setting a new password — both are now fixed (`#recoverygate` in `index.html`), but it's a reminder to actually click through auth flows end-to-end, not just assume Supabase's defaults work with this app's UI.
+- See `nse-market-data` skill for everything about `api/regime.js`/`api/breadth.js`, live market-data endpoints, the regime-scoring heuristic, the EMA-breadth backfill architecture, and the position-sizing formula.
