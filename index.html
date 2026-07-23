@@ -358,6 +358,7 @@
     <div class="panel">
       <h2>% of NIFTY 500 Above 200 EMA</h2>
       <div id="chart-above-200ema" style="height:220px;"></div>
+      <div class="save-note" id="breadth-status"></div>
     </div>
 
     <div class="panel">
@@ -434,6 +435,7 @@ let capital = emptyCapital();
 let liveRegime = {};
 let regimeHistory = [];
 let currentRegime = null;
+let breadthHistory = [];
 
 // ---------- auth ----------
 let authMode = 'signin';
@@ -567,7 +569,7 @@ document.querySelectorAll('.tab').forEach(t=>{
     t.classList.add('active');
     document.getElementById('view-'+t.dataset.view).classList.add('active');
     if(t.dataset.view==='exposure') renderExposure();
-    if(t.dataset.view==='regime'){ fetchRegimeLive(); fetchRegimeHistory(); }
+    if(t.dataset.view==='regime'){ fetchRegimeLive(); fetchRegimeHistory(); updateBreadthIfNeeded(); }
   });
 });
 
@@ -1089,6 +1091,95 @@ function renderHighsLowsChart(){
   const asc = regimeHistory.slice().reverse();
   series.highs.setData(asc.filter(r=>!isNaN(r.newHighs)).map(r=>({time:r.snapshotDate, value:r.newHighs})));
   series.lows.setData(asc.filter(r=>!isNaN(r.newLows)).map(r=>({time:r.snapshotDate, value:-r.newLows})));
+}
+
+// ---------- EMA breadth ----------
+async function fetchBreadthHistory(){
+  const { data, error } = await sb.from('market_breadth_history').select('*').order('snapshot_date', { ascending:false }).limit(150);
+  breadthHistory = error ? [] : data.map(d=>({
+    snapshotDate: d.snapshot_date, pctAbove50Ema: d.pct_above_50ema, pctAbove200Ema: d.pct_above_200ema
+  }));
+  renderBreadthCharts();
+}
+
+function renderBreadthCharts(){
+  const asc = breadthHistory.slice().reverse();
+  const { series: s50 } = getOrCreateChart('chart-above-50ema', {
+    pct: { type:'Area', options:{ lineColor: chartColor('--amber'), topColor:'rgba(232,163,61,0.3)', bottomColor:'rgba(232,163,61,0)' } }
+  });
+  s50.pct.setData(asc.filter(r=>r.pctAbove50Ema!=null).map(r=>({time:r.snapshotDate, value:r.pctAbove50Ema})));
+
+  const { series: s200 } = getOrCreateChart('chart-above-200ema', {
+    pct: { type:'Area', options:{ lineColor: chartColor('--green'), topColor:'rgba(95,184,122,0.3)', bottomColor:'rgba(95,184,122,0)' } }
+  });
+  s200.pct.setData(asc.filter(r=>r.pctAbove200Ema!=null).map(r=>({time:r.snapshotDate, value:r.pctAbove200Ema})));
+}
+
+// Triggered on opening the Market Regime tab — no cron, since a cron-invoked function
+// would need a service_role key (or a long-lived stored credential) to write to Supabase,
+// which this app never does. Fetches just today's single bhavcopy (fast) and applies the
+// standard incremental EMA update using yesterday's persisted state, only if today hasn't
+// already been computed. Degrades silently (no alert()) if the bhavcopy isn't published yet.
+async function updateBreadthIfNeeded(){
+  const statusEl = document.getElementById('breadth-status');
+  const today = new Date().toISOString().slice(0,10);
+  const { data: latest } = await sb.from('market_breadth_history').select('snapshot_date').order('snapshot_date', { ascending:false }).limit(1).maybeSingle();
+
+  if(latest && latest.snapshot_date === today){
+    statusEl.textContent = `Breadth is up to date (${today}).`;
+    await fetchBreadthHistory();
+    return;
+  }
+
+  let resp;
+  try{
+    resp = await (await fetch('/api/breadth')).json();
+  } catch(e){
+    statusEl.textContent = `Could not check for a breadth update. Last known: ${latest ? latest.snapshot_date : 'none'}.`;
+    await fetchBreadthHistory();
+    return;
+  }
+  if(resp.error || !resp.closes){
+    statusEl.textContent = `Breadth not updated yet (${resp.error||'no data'}). Last known: ${latest ? latest.snapshot_date : 'none'}.`;
+    await fetchBreadthHistory();
+    return;
+  }
+  if(latest && resp.date === latest.snapshot_date){
+    statusEl.textContent = `Breadth is up to date (${resp.date}).`;
+    await fetchBreadthHistory();
+    return;
+  }
+
+  const { data: stateRow } = await sb.from('ema_state').select('state').maybeSingle();
+  const state = stateRow ? stateRow.state : {};
+  const k50 = 2/51, k200 = 2/201;
+  let above50 = 0, above200 = 0, counted = 0;
+  Object.keys(resp.closes).forEach(sym=>{
+    const prior = state[sym];
+    if(!prior || prior.ema50==null || prior.ema200==null) return; // no seeded state for this symbol — skip, don't fabricate
+    const price = resp.closes[sym];
+    const newEma50 = price*k50 + prior.ema50*(1-k50);
+    const newEma200 = price*k200 + prior.ema200*(1-k200);
+    state[sym] = { ema50:newEma50, ema200:newEma200, lastClose:price, lastDate:resp.date };
+    counted++;
+    if(price > newEma50) above50++;
+    if(price > newEma200) above200++;
+  });
+
+  if(counted === 0){
+    statusEl.textContent = `Breadth update skipped — no matching symbols in ${resp.date}'s data.`;
+    await fetchBreadthHistory();
+    return;
+  }
+
+  await sb.from('ema_state').upsert({ user_id: session.user.id, state }, { onConflict: 'user_id' });
+  await sb.from('market_breadth_history').upsert({
+    user_id: session.user.id, snapshot_date: resp.date,
+    pct_above_50ema: +(above50/counted*100).toFixed(2),
+    pct_above_200ema: +(above200/counted*100).toFixed(2)
+  }, { onConflict: 'user_id,snapshot_date' });
+  statusEl.textContent = `Breadth updated for ${resp.date} (${counted} symbols).`;
+  await fetchBreadthHistory();
 }
 
 // ---------- init ----------
