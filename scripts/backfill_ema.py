@@ -1,11 +1,15 @@
 """
-One-time backfill for the Market Regime tab's EMA-breadth charts.
+One-time backfill for the Market Regime tab's EMA-breadth and 5-day/volume-move charts.
 
 Fetches ~300+ trading days of NSE daily bhavcopy archives (one CSV per day,
 https://archives.nseindia.com/products/content/sec_bhavdata_full_DDMMYYYY.csv),
-computes a 50-day and 200-day EMA per NIFTY 500 symbol, and derives the daily
-aggregate "% of NIFTY 500 above 50 EMA" / "% above 200 EMA" for the trading
-days beyond the warm-up window.
+and computes, per NIFTY 500 symbol:
+  - 50-day and 200-day EMA (-> "% above 50/200 EMA" breadth)
+  - a rolling 6-close window (-> "% up 20%/30% in 5 trading days")
+  - a rolling 20-volume window (-> "up/down 4%+ on volume", volume > 1.5x its own
+    trailing 20-day average, not just the price move alone)
+for the trading days beyond each metric's warm-up window (EMA's 200-day warmup is the
+long pole; by the time it's satisfied, the much shorter 5-day/20-day windows already are).
 
 This is NOT run automatically or on a schedule — see .claude/skills/nse-market-data/SKILL.md
 for why (no service_role key, ever; ongoing updates happen client-side via api/breadth.js).
@@ -27,7 +31,10 @@ HEADERS = {
 
 EMA50_PERIOD = 50
 EMA200_PERIOD = 200
-TARGET_TRADING_DAYS = 320   # 200-day warmup + ~120 days of real breadth output, with margin
+RECENT_CLOSES_WINDOW = 6    # need close from 5 trading days ago: hist[-6] vs hist[-1]
+RECENT_VOLUMES_WINDOW = 20  # trailing 20-day average volume, excluding today
+VOLUME_MULTIPLE = 1.5       # today's volume must exceed 1.5x its own 20-day average to count
+TARGET_TRADING_DAYS = 320   # 200-day EMA warmup + ~120 days of real breadth output, with margin
 MAX_CALENDAR_DAYS_BACK = 480
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -56,26 +63,28 @@ def fetch_day(d):
         return None
 
 
-def parse_closes(text, symbols):
-    """Returns {symbol: close_price} for rows where SERIES == 'EQ' and symbol is in the NIFTY 500 set."""
+def parse_closes_and_volumes(text, symbols):
+    """Returns ({symbol: close_price}, {symbol: volume}) for SERIES == 'EQ' rows in the NIFTY 500 set."""
     lines = text.strip().split('\n')
     header = [h.strip() for h in lines[0].split(',')]
     sym_i = header.index('SYMBOL')
     series_i = header.index('SERIES')
     close_i = header.index('CLOSE_PRICE')
-    out = {}
+    vol_i = header.index('TTL_TRD_QNTY')
+    closes, volumes = {}, {}
     for line in lines[1:]:
         cells = line.split(',')
-        if len(cells) <= close_i:
+        if len(cells) <= vol_i:
             continue
         sym = cells[sym_i].strip()
         series = cells[series_i].strip()
         if series == 'EQ' and sym in symbols:
             try:
-                out[sym] = float(cells[close_i].strip())
+                closes[sym] = float(cells[close_i].strip())
+                volumes[sym] = float(cells[vol_i].strip())
             except ValueError:
                 pass
-    return out
+    return closes, volumes
 
 
 def main():
@@ -83,42 +92,44 @@ def main():
     print(f'Loaded {len(symbols)} NIFTY 500 symbols.')
 
     today = datetime.date.today()
-    daily_closes = []  # list of (date_str, {symbol: close})
+    daily_data = []  # list of (date_str, {symbol: close}, {symbol: volume})
     checked = 0
     d = today
-    while len(daily_closes) < TARGET_TRADING_DAYS and checked < MAX_CALENDAR_DAYS_BACK:
+    while len(daily_data) < TARGET_TRADING_DAYS and checked < MAX_CALENDAR_DAYS_BACK:
         checked += 1
         if d.weekday() < 5:  # Mon-Fri only; skip weekends without a network call
             text = fetch_day(d)
             if text:
-                closes = parse_closes(text, symbols)
+                closes, volumes = parse_closes_and_volumes(text, symbols)
                 if closes:
-                    daily_closes.append((d.isoformat(), closes))
-                    if len(daily_closes) % 25 == 0:
-                        print(f'  {len(daily_closes)} trading days collected (as of {d.isoformat()})...')
+                    daily_data.append((d.isoformat(), closes, volumes))
+                    if len(daily_data) % 25 == 0:
+                        print(f'  {len(daily_data)} trading days collected (as of {d.isoformat()})...')
         d -= datetime.timedelta(days=1)
 
-    daily_closes.reverse()  # ascending by date now
-    print(f'Collected {len(daily_closes)} trading days, {checked} calendar days checked.')
+    daily_data.reverse()  # ascending by date now
+    print(f'Collected {len(daily_data)} trading days, {checked} calendar days checked.')
 
-    # Per-symbol EMA rollforward
-    ema50 = {}
-    ema200 = {}
-    close_history = {}  # symbol -> list of closes seen so far, for SMA seeding
+    # Per-symbol rollforward: EMA50/200, a rolling close window, a rolling volume window
+    ema50, ema200 = {}, {}
+    close_history = {}   # symbol -> full list of closes seen so far (SMA seed + 5-day window)
+    volume_history = {}  # symbol -> full list of volumes seen so far (20-day average window)
     k50 = 2 / (EMA50_PERIOD + 1)
     k200 = 2 / (EMA200_PERIOD + 1)
 
     breadth_history = []
-    last_close = {}
-    last_date = None
+    last_close, last_date = {}, None
 
-    for date_str, closes in daily_closes:
-        above50 = 0
-        above200 = 0
-        counted = 0
+    for date_str, closes, volumes in daily_data:
+        above50 = above200 = counted = 0
+        up20_5d = up30_5d = up4pct_vol = down4pct_vol = 0
+
         for sym, price in closes.items():
             hist = close_history.setdefault(sym, [])
+            vol_hist = volume_history.setdefault(sym, [])
             hist.append(price)
+            if sym in volumes:
+                vol_hist.append(volumes[sym])
 
             if sym not in ema50:
                 if len(hist) == EMA50_PERIOD:
@@ -139,13 +150,48 @@ def main():
                 if price > ema200[sym]:
                     above200 += 1
 
+            # 5-day move: hist[-1] is today, hist[-6] is 5 trading days ago.
+            # Thresholds are inclusive/cumulative (a 35% mover counts in both buckets),
+            # matching how screener tools conventionally report "up X%+" counts.
+            if len(hist) >= RECENT_CLOSES_WINDOW:
+                base = hist[-RECENT_CLOSES_WINDOW]
+                if base:
+                    pct5d = (price - base) / base * 100
+                    if pct5d >= 20:
+                        up20_5d += 1
+                    if pct5d >= 30:
+                        up30_5d += 1
+
+            # volume-confirmed 1-day move: needs 20 prior days plus today, i.e. length 21
+            if len(vol_hist) >= RECENT_VOLUMES_WINDOW + 1 and len(hist) >= 2:
+                prior_avg_vol = sum(vol_hist[-(RECENT_VOLUMES_WINDOW + 1):-1]) / RECENT_VOLUMES_WINDOW
+                today_vol = vol_hist[-1]
+                pct1d = (price - hist[-2]) / hist[-2] * 100 if hist[-2] else 0
+                if prior_avg_vol and today_vol > prior_avg_vol * VOLUME_MULTIPLE:
+                    if pct1d >= 4:
+                        up4pct_vol += 1
+                    elif pct1d <= -4:
+                        down4pct_vol += 1
+
+            # Only trim the volume window — it has no other use requiring an exact untouched
+            # length. close_history must stay unbounded/untouched: EMA seeding above depends
+            # on it reaching exactly EMA50_PERIOD/EMA200_PERIOD elements. The last 6 closes
+            # for ema_state's output are sliced off at the very end instead, once, after
+            # this loop is done growing.
+            if len(vol_hist) > RECENT_VOLUMES_WINDOW:
+                del vol_hist[0]
+
         last_close = closes
         last_date = date_str
-        if counted >= 50:  # only record once enough symbols have both EMAs seeded
+        if counted >= 50:  # only record once enough symbols have EMAs seeded (the long pole)
             breadth_history.append({
                 'date': date_str,
                 'pctAbove50Ema': round(above50 / counted * 100, 2),
                 'pctAbove200Ema': round(above200 / counted * 100, 2),
+                'countUp20_5d': up20_5d,
+                'countUp30_5d': up30_5d,
+                'countUp4pctVol': up4pct_vol,
+                'countDown4pctVol': down4pct_vol,
                 'symbolsCounted': counted,
             })
 
@@ -157,6 +203,8 @@ def main():
                 'ema200': round(ema200[sym], 4),
                 'lastClose': last_close.get(sym),
                 'lastDate': last_date,
+                'recentCloses': [round(c, 4) for c in close_history.get(sym, [])[-RECENT_CLOSES_WINDOW:]],
+                'recentVolumes': volume_history.get(sym, [])[-RECENT_VOLUMES_WINDOW:],
             }
 
     print(f'Computed EMA state for {len(ema_state)} symbols.')
