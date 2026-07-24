@@ -2,8 +2,9 @@
 -- Run once in the Supabase SQL Editor (Project → SQL Editor → New query) for a FRESH project only.
 -- If a project already has these tables with data, do NOT run this file — use the incremental
 -- migration files in this folder instead (migration_002_setup_regime_sizing.sql,
--- migration_003_ema_breadth.sql), which are additive (ALTER TABLE ADD COLUMN IF NOT EXISTS /
--- CREATE TABLE IF NOT EXISTS) and safe to re-run.
+-- migration_003_ema_breadth.sql, migration_004_segment_alloc_and_breadth_extras.sql), which
+-- are additive (ALTER TABLE ADD COLUMN IF NOT EXISTS / CREATE TABLE IF NOT EXISTS) and safe
+-- to re-run.
 
 create extension if not exists pgcrypto;
 
@@ -62,10 +63,17 @@ create table public.capital (
   mult_risk_on   numeric not null default 1.2,
   mult_neutral   numeric not null default 1.0,
   mult_risk_off  numeric not null default 0.6,
+  alloc_equity_pct numeric not null default 50, -- % of total capital earmarked for Equity —
+  alloc_fno_pct    numeric not null default 30, -- position-sizing risk % is measured against
+  alloc_comm_pct   numeric not null default 20, -- this slice, not 100% of total, per segment
   updated_at     timestamptz not null default now()
 );
 
--- ---------- market_regime (history of saved daily snapshots — NOT one-row-per-user) ----------
+-- ---------- market_regime (history of saved daily snapshots) ----------
+-- Auto-saves on every successful live fetch (tab-open + manual "Refresh from NSE") — this
+-- reverses an earlier deliberate "no auto-save, user must click Save" decision, by explicit
+-- user request (they didn't want a daily manual click). Contrast with market_breadth_history
+-- below, which auto-saves for a different reason: it never had a button to click at all.
 create table public.market_regime (
   id            uuid primary key default gen_random_uuid(),
   user_id       uuid not null references auth.users(id) on delete cascade,
@@ -86,17 +94,21 @@ create index market_regime_user_date_idx on public.market_regime(user_id, snapsh
 -- ---------- ema_state (one row per user, a jsonb map — NOT one row per stock) ----------
 create table public.ema_state (
   user_id    uuid primary key references auth.users(id) on delete cascade,
-  state      jsonb not null default '{}'::jsonb,  -- { "RELIANCE": {"ema50":.., "ema200":.., "lastClose":.., "lastDate":".."}, ... }
+  state      jsonb not null default '{}'::jsonb,  -- { "RELIANCE": {"ema50":.., "ema200":.., "lastClose":.., "lastDate":"..", "recentCloses":[6 vals], "recentVolumes":[20 vals]}, ... }
   updated_at timestamptz not null default now()
 );
 
 -- ---------- market_breadth_history (date-keyed, auto-updated — see nse-market-data skill) ----------
 create table public.market_breadth_history (
-  user_id          uuid not null references auth.users(id) on delete cascade,
-  snapshot_date    date not null,
-  pct_above_50ema  numeric,
-  pct_above_200ema numeric,
-  updated_at       timestamptz not null default now(),
+  user_id            uuid not null references auth.users(id) on delete cascade,
+  snapshot_date      date not null,
+  pct_above_50ema    numeric,
+  pct_above_200ema   numeric,
+  count_up20_5d      integer,  -- stocks up 20%+ over the last 5 trading days
+  count_up30_5d      integer,  -- stocks up 30%+ (inclusive of the up20 bucket, not mutually exclusive)
+  count_up4pct_vol   integer,  -- stocks up 4%+ in a day AND on >1.5x their trailing 20-day avg volume
+  count_down4pct_vol integer,  -- same, down 4%+
+  updated_at         timestamptz not null default now(),
   primary key (user_id, snapshot_date)
 );
 create index market_breadth_history_user_date_idx on public.market_breadth_history(user_id, snapshot_date desc);
