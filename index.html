@@ -21,6 +21,26 @@
     --text-dim:#7c7b6f;
     --mono: "IBM Plex Mono","SF Mono",Consolas,monospace;
     --font: "Lato", -apple-system, sans-serif;
+    --input-bg:#0e0f0b;
+    --row-hover:#151710;
+    --pill-equity-bg:#22301f;
+    --pill-fno-bg:#3a2412;
+    --pill-comm-bg:#2a1f30;
+    --pill-comm-text:#b58fd6;
+  }
+  :root[data-theme="light"]{
+    --bg:#f4f2ea;
+    --panel:#ffffff;
+    --panel-2:#f0eee4;
+    --line:#dcd8c8;
+    --text:#26241c;
+    --text-dim:#6b6858;
+    --input-bg:#faf9f4;
+    --row-hover:#f0eee4;
+    --pill-equity-bg:#dcf0e2;
+    --pill-fno-bg:#fbe6cf;
+    --pill-comm-bg:#ecdff5;
+    --pill-comm-text:#7a3fa3;
   }
   *{box-sizing:border-box;}
   body{
@@ -89,7 +109,7 @@
   label{display:block; font-size:11px; color:var(--text-dim); margin-bottom:4px; margin-top:10px; text-transform:uppercase; letter-spacing:0.5px;}
   input, select, textarea{
     width:100%;
-    background:#0e0f0b;
+    background:var(--input-bg);
     border:1px solid var(--line);
     color:var(--text);
     padding:8px;
@@ -134,7 +154,7 @@
     border-bottom:1px solid var(--line);
   }
   td{padding:6px 8px; border-bottom:1px solid #1b1d16;}
-  tr:hover td{background:#151710;}
+  tr:hover td{background:var(--row-hover);}
   .pill{
     display:inline-block;
     padding:2px 7px;
@@ -142,9 +162,9 @@
     font-size:10px;
     text-transform:uppercase;
   }
-  .pill.equity{background:#22301f; color:var(--green);}
-  .pill.fno{background:#3a2412; color:var(--amber);}
-  .pill.comm{background:#2a1f30; color:#b58fd6;}
+  .pill.equity{background:var(--pill-equity-bg); color:var(--green);}
+  .pill.fno{background:var(--pill-fno-bg); color:var(--amber);}
+  .pill.comm{background:var(--pill-comm-bg); color:var(--pill-comm-text);}
   .pos{color:var(--green);}
   .neg{color:var(--red);}
   .checklist label{
@@ -183,9 +203,12 @@
   .userbox .email{color:var(--text-dim); font-size:12px;}
   .setup-row{display:grid; grid-template-columns:1fr 100px auto; gap:8px; align-items:center; margin-bottom:8px;}
   .setup-row input{margin-top:0;}
-  .journal-layout{display:grid; grid-template-columns:2fr 1fr; gap:16px;}
-  @media (max-width:900px){.journal-layout{grid-template-columns:1fr;}}
+  .paged-layout{display:grid; grid-template-columns:240px 1fr; gap:16px;}
+  @media (max-width:900px){.paged-layout{grid-template-columns:1fr;}}
   .side-panel button{width:100%;}
+  .trade-book-list{max-height:520px; overflow-y:auto;}
+  .trade-book-row{display:flex; align-items:center; justify-content:space-between; gap:6px; padding:6px 0; border-bottom:1px solid var(--line); cursor:pointer; font-size:12px;}
+  .trade-book-row:hover{color:var(--amber);}
   .summary-strip{display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--line);}
   .summary-strip .mix{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
   .summary-strip .lev{color:var(--text-dim); font-size:12px;}
@@ -227,7 +250,7 @@
 <div id="app" style="display:none">
 
 <div class="topbar">
-  <div class="brand">Trading Desk / <b>Journal · Rules · Exposure</b></div>
+  <div class="brand">Trading Desk / <b>Market Regime · Exposure · Journal</b></div>
   <div class="userbox">
     <span class="email" id="whoami"></span>
     <button class="ghost small" onclick="signOut()">Log Out</button>
@@ -236,134 +259,145 @@
 </div>
 
 <div class="tabs">
-  <div class="tab active" data-view="journal">Journal</div>
-  <div class="tab" data-view="rules">Playbook</div>
+  <div class="tab active" data-view="regime">Market Regime</div>
   <div class="tab" data-view="exposure">Exposure</div>
-  <div class="tab" data-view="regime">Market Regime</div>
+  <div class="tab" data-view="journal">Journal</div>
 </div>
 
 <main>
 
-  <!-- JOURNAL -->
-  <div class="view active" id="view-journal">
-    <div class="statgrid" id="statgrid"></div>
-
-    <div class="journal-layout">
-      <div class="panel">
-        <h2>Open Positions</h2>
-        <div class="summary-strip" id="journal-summary"></div>
-        <div id="open-positions"></div>
-      </div>
-
+  <!-- MARKET REGIME -->
+  <div class="view active" id="view-regime">
+    <div class="paged-layout">
       <div class="panel side-panel">
-        <h2>Trade</h2>
-        <button onclick="openTradeModal()">+ Enter a Trade</button>
+        <h2>Display</h2>
+        <button class="ghost" onclick="toggleTheme()">🌓 Dark / Light</button>
       </div>
-    </div>
 
-    <div class="panel">
-      <h2>Closed Trades</h2>
-      <div id="closed-trades"></div>
-    </div>
-  </div>
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+          <div class="statgrid" id="regime-statgrid" style="flex:1"></div>
+          <div id="regime-fetched-label" style="font-size:11px; color:var(--text-dim); white-space:nowrap; padding-top:4px;"></div>
+        </div>
 
-  <!-- RULES / PLAYBOOK -->
-  <div class="view" id="view-rules">
-    <div class="panel">
-      <h2>Your Trading Constitution</h2>
-      <div style="color:var(--text-dim); margin-bottom:10px;">
-        Edit these once, then leave them alone — this is what you check your trades against,
-        not something to rewrite mid-trade.
+        <div class="panel">
+          <button class="ghost small" onclick="fetchRegimeLive()">Refresh from NSE</button>
+          <span class="save-note" id="regime-saved"></span>
+        </div>
+
+        <div class="panel">
+          <h2>New Highs / New Lows</h2>
+          <div id="chart-highs-lows" style="height:220px;"></div>
+        </div>
+
+        <div class="panel">
+          <h2>% of NIFTY 500 Above 50 EMA</h2>
+          <div id="chart-above-50ema" style="height:220px;"></div>
+        </div>
+
+        <div class="panel">
+          <h2>% of NIFTY 500 Above 200 EMA</h2>
+          <div id="chart-above-200ema" style="height:220px;"></div>
+          <div class="save-note" id="breadth-status"></div>
+        </div>
+
+        <div class="panel">
+          <h2>History</h2>
+          <div id="regime-history"></div>
+        </div>
       </div>
-      <div id="rules-blocks"></div>
-      <button onclick="saveRules()">Save Playbook</button>
-      <span class="save-note" id="rules-saved"></span>
-    </div>
-
-    <div class="panel">
-      <h2>Trade Setups &amp; Multipliers</h2>
-      <div style="color:var(--text-dim); margin-bottom:10px;">
-        These are the options in the Journal's "Setup / Thesis" dropdown. The multiplier scales the suggested
-        position size for trades tagged with that setup (1.0 = no change).
-      </div>
-      <div id="setup-options-list"></div>
-      <button class="ghost small" onclick="addSetupOptionRow()">+ Add Setup</button>
-      <button onclick="saveSetupOptions()">Save Setups</button>
-      <span class="save-note" id="setups-saved"></span>
     </div>
   </div>
 
   <!-- EXPOSURE -->
   <div class="view" id="view-exposure">
-    <div class="panel">
-      <h2>Capital & Leverage Caps</h2>
-      <div class="row3">
-        <div><label>Total Capital</label><input id="cap-total" type="number" step="any"></div>
-        <div><label>Max Leverage — Equity</label><input id="cap-lev-equity" type="number" step="any"></div>
-        <div><label>Max Leverage — F&O</label><input id="cap-lev-fno" type="number" step="any"></div>
-      </div>
-      <div class="row2">
-        <div><label>Max Leverage — Commodity</label><input id="cap-lev-comm" type="number" step="any"></div>
-        <div><label>Max Risk per Trade (%)</label><input id="cap-risk-trade" type="number" step="any"></div>
+    <div class="paged-layout">
+      <div class="panel side-panel">
+        <h2>Capital & Leverage Caps</h2>
+        <label>Total Capital</label><input id="cap-total" type="number" step="any">
+        <label>Max Leverage — Equity</label><input id="cap-lev-equity" type="number" step="any">
+        <label>Max Leverage — F&O</label><input id="cap-lev-fno" type="number" step="any">
+        <label>Max Leverage — Commodity</label><input id="cap-lev-comm" type="number" step="any">
+        <label>Max Risk per Trade (%)</label><input id="cap-risk-trade" type="number" step="any">
+
+        <div style="color:var(--text-dim); margin-top:16px; padding-top:12px; border-top:1px solid var(--line); font-size:12px;">
+          Capital Allocation by Segment — what share of Total Capital is earmarked for each segment.
+          Position-sizing checks measure a trade's risk against its own segment's slice, not your whole capital.
+        </div>
+        <label>Alloc — Equity (%)</label><input id="cap-alloc-equity" type="number" step="any">
+        <label>Alloc — F&O (%)</label><input id="cap-alloc-fno" type="number" step="any">
+        <label>Alloc — Commodity (%)</label><input id="cap-alloc-comm" type="number" step="any">
+
+        <div style="color:var(--text-dim); margin-top:16px; padding-top:12px; border-top:1px solid var(--line); font-size:12px;">
+          Position Sizing Multipliers — applied on top of "Max Risk per Trade" based on market-cap class and regime.
+        </div>
+        <label>Mult — Large Cap</label><input id="cap-mult-large" type="number" step="any">
+        <label>Mult — Mid Cap</label><input id="cap-mult-mid" type="number" step="any">
+        <label>Mult — Small Cap</label><input id="cap-mult-small" type="number" step="any">
+        <label>Mult — Risk-On</label><input id="cap-mult-riskon" type="number" step="any">
+        <label>Mult — Neutral</label><input id="cap-mult-neutral" type="number" step="any">
+        <label>Mult — Risk-Off</label><input id="cap-mult-riskoff" type="number" step="any">
+        <button onclick="saveCapital()">Save</button>
+        <span class="save-note" id="cap-saved"></span>
       </div>
 
-      <div style="color:var(--text-dim); margin-top:16px; padding-top:12px; border-top:1px solid var(--line);">
-        Position Sizing Multipliers — applied on top of "Max Risk per Trade" to suggest a size for each new trade,
-        based on its market-cap class and the current market regime. Tune these as you learn what works.
-      </div>
-      <div class="row3">
-        <div><label>Mult — Large Cap</label><input id="cap-mult-large" type="number" step="any"></div>
-        <div><label>Mult — Mid Cap</label><input id="cap-mult-mid" type="number" step="any"></div>
-        <div><label>Mult — Small Cap</label><input id="cap-mult-small" type="number" step="any"></div>
-      </div>
-      <div class="row3">
-        <div><label>Mult — Risk-On</label><input id="cap-mult-riskon" type="number" step="any"></div>
-        <div><label>Mult — Neutral</label><input id="cap-mult-neutral" type="number" step="any"></div>
-        <div><label>Mult — Risk-Off</label><input id="cap-mult-riskoff" type="number" step="any"></div>
-      </div>
-      <button onclick="saveCapital()">Save</button>
-      <span class="save-note" id="cap-saved"></span>
-    </div>
+      <div>
+        <div class="panel">
+          <h2>Current Exposure (from open positions)</h2>
+          <div id="exposure-table"></div>
+        </div>
 
-    <div class="panel">
-      <h2>Current Exposure (from open positions)</h2>
-      <div id="exposure-table"></div>
+        <div class="panel">
+          <h2>Your Trading Constitution</h2>
+          <div style="color:var(--text-dim); margin-bottom:10px;">
+            Edit these once, then leave them alone — this is what you check your trades against,
+            not something to rewrite mid-trade.
+          </div>
+          <div id="rules-blocks"></div>
+          <button onclick="saveRules()">Save Playbook</button>
+          <span class="save-note" id="rules-saved"></span>
+        </div>
+
+        <div class="panel">
+          <h2>Trade Setups &amp; Multipliers</h2>
+          <div style="color:var(--text-dim); margin-bottom:10px;">
+            These are the options in the Journal's "Setup / Thesis" dropdown. The multiplier scales the suggested
+            position size for trades tagged with that setup (1.0 = no change).
+          </div>
+          <div id="setup-options-list"></div>
+          <button class="ghost small" onclick="addSetupOptionRow()">+ Add Setup</button>
+          <button onclick="saveSetupOptions()">Save Setups</button>
+          <span class="save-note" id="setups-saved"></span>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- MARKET REGIME -->
-  <div class="view" id="view-regime">
-    <div class="statgrid" id="regime-statgrid"></div>
+  <!-- JOURNAL -->
+  <div class="view" id="view-journal">
+    <div class="statgrid" id="statgrid"></div>
 
-    <div class="panel">
-      <h2>Today's Snapshot</h2>
-      <div class="row2">
-        <div><label>Fetched At</label><input id="regime-fetched" disabled></div>
+    <div class="paged-layout">
+      <div class="panel side-panel">
+        <h2>Trade Book</h2>
+        <div class="trade-book-list" id="trade-book-list"></div>
       </div>
-      <button onclick="saveRegimeSnapshot()">Save Today's Snapshot</button>
-      <button class="ghost small" onclick="fetchRegimeLive()">Refresh from NSE</button>
-      <span class="save-note" id="regime-saved"></span>
-    </div>
 
-    <div class="panel">
-      <h2>New Highs / New Lows</h2>
-      <div id="chart-highs-lows" style="height:220px;"></div>
-    </div>
+      <div>
+        <div class="panel">
+          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:12px;">
+            <h2 style="margin:0; border:none; padding:0;">Open Positions</h2>
+            <button class="small" onclick="openTradeModal()">+ Enter a Trade</button>
+          </div>
+          <div class="summary-strip" id="journal-summary"></div>
+          <div id="open-positions"></div>
+        </div>
 
-    <div class="panel">
-      <h2>% of NIFTY 500 Above 50 EMA</h2>
-      <div id="chart-above-50ema" style="height:220px;"></div>
-    </div>
-
-    <div class="panel">
-      <h2>% of NIFTY 500 Above 200 EMA</h2>
-      <div id="chart-above-200ema" style="height:220px;"></div>
-      <div class="save-note" id="breadth-status"></div>
-    </div>
-
-    <div class="panel">
-      <h2>History</h2>
-      <div id="regime-history"></div>
+        <div class="panel">
+          <h2>Closed Trades</h2>
+          <div id="closed-trades"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -371,7 +405,7 @@
 
 <div class="modal-backdrop" id="trade-modal-backdrop" onclick="if(event.target===this) closeTradeModal()">
   <div class="panel modal-panel">
-    <h2>Log a Trade</h2>
+    <h2 id="trade-modal-title">Log a Trade</h2>
     <div class="row3">
       <div><label>Segment</label>
         <select id="f-segment">
@@ -408,7 +442,7 @@
     </div>
     <label>Notes</label>
     <textarea id="f-notes" placeholder="Why this trade, what you're watching..."></textarea>
-    <button onclick="addTrade()">Add Trade</button>
+    <button id="trade-modal-submit" onclick="addTrade()">Add Trade</button>
     <button class="ghost small" onclick="closeTradeModal()">Cancel</button>
     <div class="save-note">Saved to your account. Only you can see it.</div>
   </div>
@@ -427,7 +461,7 @@ let session = null;
 
 const DEFAULT_SETUP_OPTIONS = ['Cup & Handle','Rectangle Breakout','Multiyear Resistance','Head & Shoulders','Macro Thesis'];
 function emptyRules(){ return { sizing:'', stops:'', trailing:'', targets:'', leverage:'', setups:'', checklist:'', nonnegotiables:'', setupOptions: DEFAULT_SETUP_OPTIONS.slice(), setupMultipliers: {} }; }
-function emptyCapital(){ return { total:'', levEquity:'', levFno:'', levComm:'', riskPerTrade:'', multLargeCap:1.0, multMidCap:0.8, multSmallCap:0.5, multRiskOn:1.2, multNeutral:1.0, multRiskOff:0.6 }; }
+function emptyCapital(){ return { total:'', levEquity:'', levFno:'', levComm:'', riskPerTrade:'', multLargeCap:1.0, multMidCap:0.8, multSmallCap:0.5, multRiskOn:1.2, multNeutral:1.0, multRiskOff:0.6, allocEquityPct:50, allocFnoPct:30, allocCommPct:20 }; }
 
 let trades = [];
 let rules = emptyRules();
@@ -436,6 +470,21 @@ let liveRegime = {};
 let regimeHistory = [];
 let currentRegime = null;
 let breadthHistory = [];
+
+// ---------- theme ----------
+// A device display preference, not app data — same category as the Supabase SDK's own
+// session token already living in localStorage, so this doesn't conflict with keeping
+// actual trading data server-side only. Applied immediately (before auth resolves) so
+// there's no flash of the wrong theme.
+(function applyStoredTheme(){
+  const stored = localStorage.getItem('theme');
+  if(stored) document.documentElement.dataset.theme = stored;
+})();
+function toggleTheme(){
+  const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem('theme', next);
+}
 
 // ---------- auth ----------
 let authMode = 'signin';
@@ -545,7 +594,8 @@ async function fetchCapital(){
     total:data.total, levEquity:data.lev_equity, levFno:data.lev_fno,
     levComm:data.lev_comm, riskPerTrade:data.risk_per_trade,
     multLargeCap:data.mult_large_cap, multMidCap:data.mult_mid_cap, multSmallCap:data.mult_small_cap,
-    multRiskOn:data.mult_risk_on, multNeutral:data.mult_neutral, multRiskOff:data.mult_risk_off
+    multRiskOn:data.mult_risk_on, multNeutral:data.mult_neutral, multRiskOff:data.mult_risk_off,
+    allocEquityPct:data.alloc_equity_pct ?? 50, allocFnoPct:data.alloc_fno_pct ?? 30, allocCommPct:data.alloc_comm_pct ?? 20
   } : emptyCapital();
 }
 async function loadAllData(){
@@ -588,15 +638,43 @@ function segClass(seg){
 }
 
 // ---------- trade modal ----------
-function openTradeModal(){
-  document.getElementById('trade-modal-backdrop').classList.add('active');
-  if(!document.getElementById('f-entrydate').value){
+let editingTradeId = null;
+function clearTradeForm(){
+  ['f-instrument','f-entry','f-qty','f-sl','f-target','f-trail','f-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-segment').value = 'Equity';
+  document.getElementById('f-direction').value = 'Long';
+  document.getElementById('f-marketcap').value = 'Large Cap';
+}
+function openTradeModal(id){
+  editingTradeId = id || null;
+  const t = editingTradeId ? trades.find(x=>x.id===editingTradeId) : null;
+  clearTradeForm();
+  if(t){
+    document.getElementById('trade-modal-title').textContent = 'Edit Trade';
+    document.getElementById('trade-modal-submit').textContent = 'Save Changes';
+    document.getElementById('f-segment').value = t.segment;
+    document.getElementById('f-direction').value = t.direction;
+    document.getElementById('f-instrument').value = t.instrument;
+    document.getElementById('f-entry').value = isNaN(t.entry) ? '' : t.entry;
+    document.getElementById('f-qty').value = isNaN(t.qty) ? '' : t.qty;
+    document.getElementById('f-entrydate').value = t.entryDate || '';
+    document.getElementById('f-sl').value = isNaN(t.sl) ? '' : t.sl;
+    document.getElementById('f-target').value = isNaN(t.target) ? '' : t.target;
+    document.getElementById('f-trail').value = t.trail || '';
+    document.getElementById('f-setup').value = t.setup || '';
+    document.getElementById('f-marketcap').value = t.marketCap || 'Large Cap';
+    document.getElementById('f-notes').value = t.notes || '';
+  } else {
+    document.getElementById('trade-modal-title').textContent = 'Log a Trade';
+    document.getElementById('trade-modal-submit').textContent = 'Add Trade';
     document.getElementById('f-entrydate').value = new Date().toISOString().slice(0,10);
   }
+  document.getElementById('trade-modal-backdrop').classList.add('active');
   document.getElementById('f-instrument').focus();
 }
 function closeTradeModal(){
   document.getElementById('trade-modal-backdrop').classList.remove('active');
+  editingTradeId = null;
 }
 document.addEventListener('keydown', e=>{
   if(e.key==='Escape') closeTradeModal();
@@ -604,7 +682,6 @@ document.addEventListener('keydown', e=>{
 
 async function addTrade(){
   const row = {
-    user_id: session.user.id,
     segment: document.getElementById('f-segment').value,
     direction: document.getElementById('f-direction').value,
     instrument: document.getElementById('f-instrument').value.trim(),
@@ -616,25 +693,38 @@ async function addTrade(){
     trail: document.getElementById('f-trail').value.trim(),
     setup: document.getElementById('f-setup').value,
     market_cap: document.getElementById('f-marketcap').value,
-    notes: document.getElementById('f-notes').value.trim(),
-    status: 'open',
-    exit: null, exit_date: null,
-    checklist: {}
+    notes: document.getElementById('f-notes').value.trim()
   };
   if(!row.instrument || isNaN(row.entry) || isNaN(row.qty)){
     alert('Instrument, entry price and quantity are required.');
     return;
   }
-  const { data, error } = await sb.from('trades').insert(row).select().single();
-  if(error){ alert('Could not save trade: '+error.message); return; }
-  trades.push({
-    id:data.id, segment:data.segment, direction:data.direction, instrument:data.instrument,
-    entry:numOrNaN(data.entry), qty:numOrNaN(data.qty), entryDate:data.entry_date,
-    sl:numOrNaN(data.sl), target:numOrNaN(data.target),
-    trail:data.trail, setup:data.setup, marketCap:data.market_cap, notes:data.notes, status:data.status,
-    exit:numOrNaN(data.exit), exitDate:data.exit_date, checklist:data.checklist||{}
-  });
-  ['f-instrument','f-entry','f-qty','f-sl','f-target','f-trail','f-notes'].forEach(id=>document.getElementById(id).value='');
+
+  if(editingTradeId){
+    const { error } = await sb.from('trades').update(row).eq('id', editingTradeId);
+    if(error){ alert('Could not save changes: '+error.message); return; }
+    const t = trades.find(x=>x.id===editingTradeId);
+    Object.assign(t, {
+      segment:row.segment, direction:row.direction, instrument:row.instrument,
+      entry:row.entry, qty:row.qty, entryDate:row.entry_date, sl:row.sl, target:row.target,
+      trail:row.trail, setup:row.setup, marketCap:row.market_cap, notes:row.notes
+    });
+  } else {
+    row.user_id = session.user.id;
+    row.status = 'open';
+    row.exit = null; row.exit_date = null;
+    row.checklist = {};
+    const { data, error } = await sb.from('trades').insert(row).select().single();
+    if(error){ alert('Could not save trade: '+error.message); return; }
+    trades.push({
+      id:data.id, segment:data.segment, direction:data.direction, instrument:data.instrument,
+      entry:numOrNaN(data.entry), qty:numOrNaN(data.qty), entryDate:data.entry_date,
+      sl:numOrNaN(data.sl), target:numOrNaN(data.target),
+      trail:data.trail, setup:data.setup, marketCap:data.market_cap, notes:data.notes, status:data.status,
+      exit:numOrNaN(data.exit), exitDate:data.exit_date, checklist:data.checklist||{}
+    });
+  }
+  clearTradeForm();
   renderJournal();
   closeTradeModal();
 }
@@ -694,9 +784,10 @@ function suggestedRiskPct(t){
   return (capital.riskPerTrade||0) * setupMult * marketCapMult(t.marketCap) * regimeMult(label);
 }
 function actualRiskPct(t){
-  if(isNaN(t.sl) || !capital.total) return null;
+  const segCap = segmentCapital(t.segment);
+  if(isNaN(t.sl) || !segCap) return null;
   const riskAmt = Math.abs(t.entry - t.sl) * t.qty;
-  return (riskAmt / capital.total) * 100;
+  return (riskAmt / segCap) * 100;
 }
 function sizeFlag(t){
   const suggested = suggestedRiskPct(t);
@@ -724,7 +815,10 @@ function renderJournal(){
         <td>${isNaN(t.target)?'-':t.target}</td>
         <td style="color:var(--text-dim)">${t.trail||'-'}</td>
         <td style="font-size:11px">${sizeFlag(t)}</td>
-        <td><button class="ghost small" onclick="closeTradePrompt('${t.id}')">Close</button></td>
+        <td>
+          <button class="ghost small" onclick="openTradeModal('${t.id}')">Edit</button>
+          <button class="ghost small" onclick="closeTradePrompt('${t.id}')">Close</button>
+        </td>
       </tr>`).join('') + '</table>';
   }
 
@@ -766,6 +860,22 @@ function renderJournal(){
   `;
 
   renderJournalSummary();
+  renderTradeBook();
+}
+
+function renderTradeBook(){
+  const el = document.getElementById('trade-book-list');
+  if(trades.length===0){
+    el.innerHTML = '<div class="empty">No trades yet.</div>';
+    return;
+  }
+  const sorted = trades.slice().sort((a,b)=>(b.entryDate||'').localeCompare(a.entryDate||''));
+  el.innerHTML = sorted.map(t=>`
+    <div class="trade-book-row" onclick="openTradeModal('${t.id}')">
+      <span><span class="pill ${segClass(t.segment)}">${t.segment}</span> ${t.instrument}</span>
+      <span style="color:var(--text-dim)">${t.status==='open'?'OPEN':'CLOSED'}</span>
+    </div>
+  `).join('');
 }
 
 function renderJournalSummary(){
@@ -874,6 +984,9 @@ function loadCapitalForm(){
   document.getElementById('cap-mult-riskon').value = capital.multRiskOn;
   document.getElementById('cap-mult-neutral').value = capital.multNeutral;
   document.getElementById('cap-mult-riskoff').value = capital.multRiskOff;
+  document.getElementById('cap-alloc-equity').value = capital.allocEquityPct;
+  document.getElementById('cap-alloc-fno').value = capital.allocFnoPct;
+  document.getElementById('cap-alloc-comm').value = capital.allocCommPct;
 }
 async function saveCapital(){
   capital = {
@@ -887,14 +1000,18 @@ async function saveCapital(){
     multSmallCap: parseFloat(document.getElementById('cap-mult-small').value)||1.0,
     multRiskOn: parseFloat(document.getElementById('cap-mult-riskon').value)||1.0,
     multNeutral: parseFloat(document.getElementById('cap-mult-neutral').value)||1.0,
-    multRiskOff: parseFloat(document.getElementById('cap-mult-riskoff').value)||1.0
+    multRiskOff: parseFloat(document.getElementById('cap-mult-riskoff').value)||1.0,
+    allocEquityPct: parseFloat(document.getElementById('cap-alloc-equity').value)||0,
+    allocFnoPct: parseFloat(document.getElementById('cap-alloc-fno').value)||0,
+    allocCommPct: parseFloat(document.getElementById('cap-alloc-comm').value)||0
   };
   const { error } = await sb.from('capital').upsert({
     user_id: session.user.id,
     total: capital.total, lev_equity: capital.levEquity, lev_fno: capital.levFno,
     lev_comm: capital.levComm, risk_per_trade: capital.riskPerTrade,
     mult_large_cap: capital.multLargeCap, mult_mid_cap: capital.multMidCap, mult_small_cap: capital.multSmallCap,
-    mult_risk_on: capital.multRiskOn, mult_neutral: capital.multNeutral, mult_risk_off: capital.multRiskOff
+    mult_risk_on: capital.multRiskOn, mult_neutral: capital.multNeutral, mult_risk_off: capital.multRiskOff,
+    alloc_equity_pct: capital.allocEquityPct, alloc_fno_pct: capital.allocFnoPct, alloc_comm_pct: capital.allocCommPct
   }, { onConflict: 'user_id' });
   if(error){ alert('Could not save capital settings: '+error.message); return; }
   document.getElementById('cap-saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN');
@@ -917,24 +1034,41 @@ function computeExposureBySegment(){
   return segs;
 }
 
+// A segment's own slice of total capital, per its allocation % (Exposure tab) — not the
+// full total. Same helper used by both the Exposure table and Journal's sizing flag, so
+// F&O (typically leverage-heavy, smaller allocated slice) isn't measured against 100% of
+// capital the same way Equity is. Segment not yet allocated (e.g. unset) falls back to 100%
+// of total, matching the old behavior, so this never silently zeroes out an unconfigured segment.
+function segmentAllocPct(segment){
+  if(segment==='Equity') return capital.allocEquityPct;
+  if(segment==='F&O - Futures' || segment==='F&O - Options') return capital.allocFnoPct;
+  if(segment==='Commodity') return capital.allocCommPct;
+  return 100;
+}
+function segmentCapital(segment){
+  const pct = segmentAllocPct(segment);
+  return (capital.total||0) * ((pct==null || pct===0 ? 100 : pct)/100);
+}
+
 function renderExposure(){
   const segs = computeExposureBySegment();
-  const totalCap = capital.total || 0;
   let rows = '';
   Object.keys(segs).forEach(seg=>{
     const s = segs[seg];
-    const leverUsed = totalCap ? (s.exp/totalCap) : 0;
+    const segCap = segmentCapital(seg);
+    const leverUsed = segCap ? (s.exp/segCap) : 0;
     const overCap = s.cap && leverUsed > s.cap;
     rows += `<tr>
       <td><span class="pill ${segClass(seg)}">${seg}</span></td>
       <td>${s.exp.toFixed(0)}</td>
-      <td>${totalCap ? leverUsed.toFixed(2)+'x' : '-'}</td>
+      <td>${segCap.toFixed(0)}</td>
+      <td>${segCap ? leverUsed.toFixed(2)+'x' : '-'}</td>
       <td>${s.cap ? s.cap+'x' : '-'}</td>
       <td class="${overCap?'warn':'ok'}">${overCap ? 'OVER CAP' : 'OK'}</td>
     </tr>`;
   });
   document.getElementById('exposure-table').innerHTML =
-    `<table><tr><th>Segment</th><th>Exposure (₹)</th><th>Leverage Used</th><th>Cap</th><th>Status</th></tr>${rows}</table>`;
+    `<table><tr><th>Segment</th><th>Exposure (₹)</th><th>Allocated (₹)</th><th>Leverage Used</th><th>Cap</th><th>Status</th></tr>${rows}</table>`;
 }
 
 // ---------- market regime ----------
@@ -974,6 +1108,7 @@ async function fetchRegimeLive(){
     liveRegime = { fetchError: e.message || String(e) };
   }
   renderRegimeTab();
+  if(!liveRegime.fetchError) await autoSaveRegimeSnapshot();
 }
 
 async function fetchLatestRegime(){
@@ -1003,7 +1138,7 @@ function renderRegimeTab(){
     newHighs: numOrNaN(liveRegime.newHighs), newLows: numOrNaN(liveRegime.newLows),
     pcr: liveRegime.pcr ?? null
   });
-  document.getElementById('regime-fetched').value = liveRegime.fetchedAt ? new Date(liveRegime.fetchedAt).toLocaleTimeString('en-IN') : '';
+  document.getElementById('regime-fetched-label').textContent = liveRegime.fetchedAt ? ('Fetched at ' + new Date(liveRegime.fetchedAt).toLocaleTimeString('en-IN')) : '';
   const tile = (label, val, err) => `<div class="stat"><div class="num">${val==null?'-':(typeof val==='number'&&!Number.isInteger(val)?val.toFixed(2):val)}</div><div class="lbl">${label}${err?' <span class=\"flag\">'+err+'</span>':''}</div></div>`;
   document.getElementById('regime-statgrid').innerHTML =
     tile('India VIX', liveRegime.vix, liveRegime.vixError) +
@@ -1016,7 +1151,13 @@ function renderRegimeTab(){
     `<div class="stat"><div class="num">${scored.label}</div><div class="lbl">Regime (score ${scored.score})</div></div>`;
 }
 
-async function saveRegimeSnapshot(){
+// Auto-saves on every successful live fetch (tab-open and manual "Refresh from NSE") — the
+// user explicitly asked not to need a daily manual click here (unlike market_breadth_history,
+// which auto-saves for a different reason: it has no button at all to click). Upserts on
+// (user_id, snapshot_date) so re-saving the same day updates rather than duplicates. Fails
+// quietly (a status note, not alert()) — an unprompted popup on an automatic action would
+// be jarring, matching the same "degrade silently" spirit as updateBreadthIfNeeded().
+async function autoSaveRegimeSnapshot(){
   const pcr = liveRegime.pcr ?? null;
   const scored = computeRegimeScore({
     vix: numOrNaN(liveRegime.vix), fiiNet: numOrNaN(liveRegime.fiiNet),
@@ -1030,8 +1171,9 @@ async function saveRegimeSnapshot(){
     pcr, regime_label: scored.label
   };
   const { error } = await sb.from('market_regime').upsert(row, { onConflict: 'user_id,snapshot_date' });
-  if(error){ alert('Could not save snapshot: '+error.message); return; }
-  document.getElementById('regime-saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN');
+  const savedEl = document.getElementById('regime-saved');
+  if(error){ savedEl.textContent = 'Could not auto-save: '+error.message; return; }
+  savedEl.textContent = 'Auto-saved ' + new Date().toLocaleTimeString('en-IN');
   await fetchLatestRegime();
   await fetchRegimeHistory();
   renderJournal();
@@ -1189,10 +1331,22 @@ setAuthMode('signin');
 
 // Instrument autocomplete — a static, occasionally-refreshed asset (NSE rebalances the
 // NIFTY 500 quarterly), not fetched live. No auth needed, so kick off immediately.
-fetch('/nifty500.json').then(r=>r.json()).then(list=>{
+const INDEX_SYMBOLS = [
+  {symbol:'NIFTY', name:'Nifty 50 Index'},
+  {symbol:'BANKNIFTY', name:'Nifty Bank Index'},
+  {symbol:'FINNIFTY', name:'Nifty Financial Services Index'},
+  {symbol:'MIDCPNIFTY', name:'Nifty Midcap Select Index'},
+  {symbol:'SENSEX', name:'BSE Sensex Index'}
+];
+function populateInstrumentList(stockList){
+  const all = INDEX_SYMBOLS.concat(stockList || []);
   document.getElementById('instrument-list').innerHTML =
-    list.map(s=>`<option value="${s.symbol}">${s.name}</option>`).join('');
-}).catch(()=>{ /* datalist just stays empty; free-text entry still works */ });
+    all.map(s=>`<option value="${s.symbol}">${s.name}</option>`).join('');
+}
+populateInstrumentList([]);
+fetch('/nifty500.json').then(r=>r.json()).then(list=>{
+  populateInstrumentList(list);
+}).catch(()=>{ /* datalist keeps just the index symbols; free-text entry still works */ });
 </script>
 </body>
 </html>
