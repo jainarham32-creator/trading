@@ -298,6 +298,16 @@
         <div class="panel">
           <h2>% of NIFTY 500 Above 200 EMA</h2>
           <div id="chart-above-200ema" style="height:220px;"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Up 20%+ / 30%+ in 5 Days</h2>
+          <div id="chart-move-5d" style="height:220px;"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Up / Down 4%+ on Volume</h2>
+          <div id="chart-move-vol" style="height:220px;"></div>
           <div class="save-note" id="breadth-status"></div>
         </div>
 
@@ -1239,7 +1249,9 @@ function renderHighsLowsChart(){
 async function fetchBreadthHistory(){
   const { data, error } = await sb.from('market_breadth_history').select('*').order('snapshot_date', { ascending:false }).limit(150);
   breadthHistory = error ? [] : data.map(d=>({
-    snapshotDate: d.snapshot_date, pctAbove50Ema: d.pct_above_50ema, pctAbove200Ema: d.pct_above_200ema
+    snapshotDate: d.snapshot_date, pctAbove50Ema: d.pct_above_50ema, pctAbove200Ema: d.pct_above_200ema,
+    countUp20_5d: d.count_up20_5d, countUp30_5d: d.count_up30_5d,
+    countUp4pctVol: d.count_up4pct_vol, countDown4pctVol: d.count_down4pct_vol
   }));
   renderBreadthCharts();
 }
@@ -1255,6 +1267,20 @@ function renderBreadthCharts(){
     pct: { type:'Area', options:{ lineColor: chartColor('--green'), topColor:'rgba(95,184,122,0.3)', bottomColor:'rgba(95,184,122,0)' } }
   });
   s200.pct.setData(asc.filter(r=>r.pctAbove200Ema!=null).map(r=>({time:r.snapshotDate, value:r.pctAbove200Ema})));
+
+  const { series: sMove5d } = getOrCreateChart('chart-move-5d', {
+    up20: { type:'Histogram', options:{ color: chartColor('--amber'), priceFormat:{type:'volume'} } },
+    up30: { type:'Histogram', options:{ color: chartColor('--green'), priceFormat:{type:'volume'} } }
+  });
+  sMove5d.up20.setData(asc.filter(r=>r.countUp20_5d!=null).map(r=>({time:r.snapshotDate, value:r.countUp20_5d})));
+  sMove5d.up30.setData(asc.filter(r=>r.countUp30_5d!=null).map(r=>({time:r.snapshotDate, value:r.countUp30_5d})));
+
+  const { series: sMoveVol } = getOrCreateChart('chart-move-vol', {
+    up: { type:'Histogram', options:{ color: chartColor('--green'), priceFormat:{type:'volume'} } },
+    down: { type:'Histogram', options:{ color: chartColor('--red'), priceFormat:{type:'volume'} } }
+  });
+  sMoveVol.up.setData(asc.filter(r=>r.countUp4pctVol!=null).map(r=>({time:r.snapshotDate, value:r.countUp4pctVol})));
+  sMoveVol.down.setData(asc.filter(r=>r.countDown4pctVol!=null).map(r=>({time:r.snapshotDate, value:-r.countDown4pctVol})));
 }
 
 // Triggered on opening the Market Regime tab — no cron, since a cron-invoked function
@@ -1296,13 +1322,41 @@ async function updateBreadthIfNeeded(){
   const state = stateRow ? stateRow.state : {};
   const k50 = 2/51, k200 = 2/201;
   let above50 = 0, above200 = 0, counted = 0;
+  let up20_5d = 0, up30_5d = 0, up4pctVol = 0, down4pctVol = 0;
   Object.keys(resp.closes).forEach(sym=>{
     const prior = state[sym];
     if(!prior || prior.ema50==null || prior.ema200==null) return; // no seeded state for this symbol — skip, don't fabricate
     const price = resp.closes[sym];
+    const vol = resp.volumes ? resp.volumes[sym] : null;
     const newEma50 = price*k50 + prior.ema50*(1-k50);
     const newEma200 = price*k200 + prior.ema200*(1-k200);
-    state[sym] = { ema50:newEma50, ema200:newEma200, lastClose:price, lastDate:resp.date };
+
+    // 5-day move: compare against the close from 5 trading days ago (before today's push)
+    const recentCloses = Array.isArray(prior.recentCloses) ? prior.recentCloses.slice() : [];
+    if(recentCloses.length >= 6 && recentCloses[0]){
+      const pct5d = (price - recentCloses[0]) / recentCloses[0] * 100;
+      if(pct5d >= 20) up20_5d++;
+      if(pct5d >= 30) up30_5d++;
+    }
+    recentCloses.push(price);
+    if(recentCloses.length > 6) recentCloses.shift();
+
+    // volume-confirmed 1-day move: needs a full trailing 20-day average and today's volume
+    const recentVolumes = Array.isArray(prior.recentVolumes) ? prior.recentVolumes.slice() : [];
+    if(recentVolumes.length >= 20 && vol!=null && prior.lastClose){
+      const priorAvgVol = recentVolumes.reduce((a,b)=>a+b,0) / recentVolumes.length;
+      const pct1d = (price - prior.lastClose) / prior.lastClose * 100;
+      if(priorAvgVol && vol > priorAvgVol*1.5){
+        if(pct1d >= 4) up4pctVol++;
+        else if(pct1d <= -4) down4pctVol++;
+      }
+    }
+    if(vol!=null){
+      recentVolumes.push(vol);
+      if(recentVolumes.length > 20) recentVolumes.shift();
+    }
+
+    state[sym] = { ema50:newEma50, ema200:newEma200, lastClose:price, lastDate:resp.date, recentCloses, recentVolumes };
     counted++;
     if(price > newEma50) above50++;
     if(price > newEma200) above200++;
@@ -1318,7 +1372,9 @@ async function updateBreadthIfNeeded(){
   await sb.from('market_breadth_history').upsert({
     user_id: session.user.id, snapshot_date: resp.date,
     pct_above_50ema: +(above50/counted*100).toFixed(2),
-    pct_above_200ema: +(above200/counted*100).toFixed(2)
+    pct_above_200ema: +(above200/counted*100).toFixed(2),
+    count_up20_5d: up20_5d, count_up30_5d: up30_5d,
+    count_up4pct_vol: up4pctVol, count_down4pct_vol: down4pctVol
   }, { onConflict: 'user_id,snapshot_date' });
   statusEl.textContent = `Breadth updated for ${resp.date} (${counted} symbols).`;
   await fetchBreadthHistory();
