@@ -619,17 +619,24 @@ async function loadAllData(){
   populateSetupDropdown();
   loadCapitalForm();
   renderExposure();
+  // Market Regime is the default landing tab, but its own data-loading is otherwise only
+  // wired to the tab-click handler below — without this it would never fire on first login,
+  // only after clicking away and back. Trigger it here for whichever tab starts active.
+  onTabShown(document.querySelector('.tab.active')?.dataset.view);
 }
 
 // ---------- tabs ----------
+function onTabShown(view){
+  if(view==='exposure') renderExposure();
+  if(view==='regime'){ fetchRegimeLive(); fetchRegimeHistory(); updateBreadthIfNeeded(); }
+}
 document.querySelectorAll('.tab').forEach(t=>{
   t.addEventListener('click', ()=>{
     document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
     document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
     t.classList.add('active');
     document.getElementById('view-'+t.dataset.view).classList.add('active');
-    if(t.dataset.view==='exposure') renderExposure();
-    if(t.dataset.view==='regime'){ fetchRegimeLive(); fetchRegimeHistory(); updateBreadthIfNeeded(); }
+    onTabShown(t.dataset.view);
   });
 });
 
