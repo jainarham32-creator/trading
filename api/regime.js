@@ -59,8 +59,28 @@ async function safeFetchCsv(urlForDate, extract) {
   return { error: 'no recent file available' };
 }
 
+// Parses NSE's "all indices closing values" EOD file: a simple header + one row per index,
+// no quoting. Used to read the Nifty 500 index's own closing level (for its 20-EMA in the
+// Regime Score), since this is index-level data — separate from the per-stock bhavcopy
+// already used for EMA breadth.
+function parseIndexClose(text, indexName) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length);
+  const header = lines[0].split(',').map(h => h.trim());
+  const nameI = header.indexOf('Index Name');
+  const closeI = header.indexOf('Closing Index Value');
+  if (nameI === -1 || closeI === -1) return null;
+  for (let i = 1; i < lines.length; i++) {
+    const cells = lines[i].split(',');
+    if (cells[nameI] && cells[nameI].trim() === indexName) {
+      const close = parseFloat(cells[closeI]);
+      return isNaN(close) ? null : close;
+    }
+  }
+  return null;
+}
+
 module.exports = async (req, res) => {
-  const [vix, fiidii, highs, lows, pcr] = await Promise.all([
+  const [vix, fiidii, highs, lows, pcr, nifty500] = await Promise.all([
     safeFetch('https://www.nseindia.com/api/allIndices', j => {
       const row = (j.data || []).find(x => x.indexSymbol === 'INDIA VIX' || x.index === 'INDIA VIX');
       return row ? parseFloat(row.last) : null;
@@ -101,6 +121,13 @@ module.exports = async (req, res) => {
         return result;
       }
     ),
+    safeFetchCsv(
+      d => `https://archives.nseindia.com/content/indices/ind_close_all_${ddmmyyyy(d)}.csv`,
+      (text, d) => {
+        const close = parseIndexClose(text, 'Nifty 500');
+        return close == null ? null : { close, date: ddmmyyyy(d) };
+      }
+    ),
   ]);
 
   res.status(200).json({
@@ -120,5 +147,8 @@ module.exports = async (req, res) => {
     pcrError: pcr.error ?? null,
     fiiOptionsPcr: pcr.value ? (pcr.value.fiiOptionsPcr ?? null) : null,
     fiiOptionsPcrError: pcr.error ?? null,
+    nifty500Close: nifty500.value ? nifty500.value.close : null,
+    nifty500Date: nifty500.value ? nifty500.value.date : null,
+    nifty500Error: nifty500.error ?? null,
   });
 };
