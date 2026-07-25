@@ -34,8 +34,8 @@ EMA200_PERIOD = 200
 RECENT_CLOSES_WINDOW = 6    # need close from 5 trading days ago: hist[-6] vs hist[-1]
 RECENT_VOLUMES_WINDOW = 20  # trailing 20-day average volume, excluding today
 VOLUME_MULTIPLE = 1.5       # today's volume must exceed 1.5x its own 20-day average to count
-TARGET_TRADING_DAYS = 320   # 200-day EMA warmup + ~120 days of real breadth output, with margin
-MAX_CALENDAR_DAYS_BACK = 480
+TARGET_TRADING_DAYS = 700   # 200-day EMA warmup + ~500 days of real breadth output, with margin
+MAX_CALENDAR_DAYS_BACK = 1100  # archives confirmed retained at least 3 years back
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)

@@ -27,6 +27,8 @@
     --pill-fno-bg:#3a2412;
     --pill-comm-bg:#2a1f30;
     --pill-comm-text:#b58fd6;
+    --pill-indexfut-bg:#1f2a38;
+    --pill-indexfut-text:#6fa8dc;
   }
   :root[data-theme="light"]{
     --bg:#f4f2ea;
@@ -41,6 +43,8 @@
     --pill-fno-bg:#fbe6cf;
     --pill-comm-bg:#ecdff5;
     --pill-comm-text:#7a3fa3;
+    --pill-indexfut-bg:#dbe9f7;
+    --pill-indexfut-text:#2f6ca8;
   }
   *{box-sizing:border-box;}
   body{
@@ -165,6 +169,7 @@
   .pill.equity{background:var(--pill-equity-bg); color:var(--green);}
   .pill.fno{background:var(--pill-fno-bg); color:var(--amber);}
   .pill.comm{background:var(--pill-comm-bg); color:var(--pill-comm-text);}
+  .pill.indexfut{background:var(--pill-indexfut-bg); color:var(--pill-indexfut-text);}
   .pos{color:var(--green);}
   .neg{color:var(--red);}
   .checklist label{
@@ -204,9 +209,15 @@
   .setup-row{display:grid; grid-template-columns:1fr 100px auto; gap:8px; align-items:center; margin-bottom:8px;}
   .setup-row input{margin-top:0;}
   .paged-layout{display:grid; grid-template-columns:240px 1fr; gap:16px;}
-  @media (max-width:900px){.paged-layout{grid-template-columns:1fr;}}
+  .paged-layout.regime-layout{grid-template-columns:240px 1fr 320px;}
+  @media (max-width:900px){.paged-layout, .paged-layout.regime-layout{grid-template-columns:1fr;}}
   .paged-layout .main-col{max-width:960px;}
   .side-panel button{width:100%;}
+  .sector-bar-row{display:grid; grid-template-columns:96px 1fr 32px; align-items:center; gap:8px; margin-bottom:6px;}
+  .sector-bar-label{font-size:11px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .sector-bar-track{background:var(--panel-2); border:1px solid var(--line); border-radius:2px; height:12px; overflow:hidden;}
+  .sector-bar-fill{height:100%;}
+  .sector-bar-pct{font-size:11px; color:var(--text-dim); text-align:right;}
   .trade-book-list{max-height:520px; overflow-y:auto;}
   .trade-book-row{display:flex; align-items:center; justify-content:space-between; gap:6px; padding:6px 0; border-bottom:1px solid var(--line); cursor:pointer; font-size:12px;}
   .trade-book-row:hover{color:var(--amber);}
@@ -225,6 +236,7 @@
   .modal-backdrop{display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); align-items:center; justify-content:center; z-index:100; padding:20px;}
   .modal-backdrop.active{display:flex;}
   .modal-panel{width:100%; max-width:520px; max-height:90vh; overflow-y:auto; margin:0;}
+  .modal-panel.wide{max-width:900px;}
 </style>
 </head>
 <body>
@@ -277,7 +289,7 @@
 
   <!-- MARKET REGIME -->
   <div class="view active" id="view-regime">
-    <div class="paged-layout">
+    <div class="paged-layout regime-layout">
       <div class="panel side-panel">
         <h2>Display</h2>
         <button class="ghost" onclick="toggleTheme()">🌓 Dark / Light</button>
@@ -286,15 +298,16 @@
           <span>Regime Score</span><span class="chev">›</span>
         </div>
         <div class="side-body" id="regime-score-info-body">
-          <p><b>Thesis:</b> a simple rules-based read of risk appetite from four inputs — volatility, institutional flows, market breadth, and options positioning — bucketed into Risk-On / Neutral / Risk-Off. It's a cross-check against your Playbook's setups, not a standalone signal.</p>
-          <p><b>Criteria:</b></p>
+          <p><b>Thesis:</b> five inputs — volatility, market breadth, options positioning, new highs/lows, and the index's own trend — each scored 0-100 and weighted equally (20% each), averaged into one composite. A cross-check against your Playbook's setups, not a standalone signal. Shows "Scoring…" until every input for the day has arrived.</p>
+          <p><b>Criteria (each worth 20%):</b></p>
           <ul>
-            <li>VIX &lt; 13 → +1 · &gt; 18 → −1 · &gt; 25 → −2</li>
-            <li>FII Net &gt; ₹1000cr → +1 · &lt; −₹1000cr → −1</li>
-            <li>New Highs &gt; New Lows → +1 · New Lows &gt; 1.5× New Highs → −1</li>
-            <li>PCR &gt; 1.2 → +1 · &lt; 0.8 → −1</li>
+            <li>VIX: &lt;14 → 100 · 14–20 → 66 · 20–25 → 33 · &gt;25 → 0</li>
+            <li>% of NIFTY 500 above 50 EMA: &lt;20 → 0 · 20–50 → 60 · 50–70 → 100 · &gt;70 → 40 (overbought)</li>
+            <li>PCR: ≤0.8 → 0, ≥1.2 → 100, sliding scale between</li>
+            <li>New Highs vs Lows: highs&gt;lows → 100 · lows&gt;1.5×highs → 0 · else → 50</li>
+            <li>NIFTY 500 vs. its 20 EMA: above → 100 · within 2% below → 50 · &gt;2% below → 0</li>
           </ul>
-          <p>Score ≥ 2 → <span class="pos">Risk-On</span>. Score ≤ −2 → <span class="neg">Risk-Off</span>. Else Neutral.</p>
+          <p>Score ≥ 65 → <span class="pos">Risk-On</span>. Score ≤ 35 → <span class="neg">Risk-Off</span>. Else Neutral.</p>
         </div>
       </div>
 
@@ -326,11 +339,13 @@
         <div class="panel">
           <h2>Up 20%+ / 30%+ in 5 Days</h2>
           <div id="chart-move-5d" style="height:220px;"></div>
+          <div class="save-note">Count of NIFTY 500 stocks up 20%+/30%+ over the last 5 trading days — cumulative buckets, so a 35% mover counts in both.</div>
         </div>
 
         <div class="panel">
           <h2>Up / Down 4%+ on Volume</h2>
           <div id="chart-move-vol" style="height:220px;"></div>
+          <div class="save-note">Stocks moving ±4%+ in a day AND trading above 1.5× their trailing 20-day average volume — a volume-confirmed move, not just a price screener.</div>
           <div class="save-note" id="breadth-status"></div>
         </div>
 
@@ -338,6 +353,12 @@
           <h2>History</h2>
           <div id="regime-history"></div>
         </div>
+      </div>
+
+      <div class="panel">
+        <h2>Sector Strength</h2>
+        <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">% of each sector's tracked NIFTY 500 constituents trading above their 200-day EMA.</div>
+        <div id="sector-strength-panel"></div>
       </div>
     </div>
   </div>
@@ -351,6 +372,7 @@
         <label>Max Leverage — Equity</label><input id="cap-lev-equity" type="number" step="any">
         <label>Max Leverage — F&O</label><input id="cap-lev-fno" type="number" step="any">
         <label>Max Leverage — Commodity</label><input id="cap-lev-comm" type="number" step="any">
+        <label>Max Leverage — Index Future</label><input id="cap-lev-indexfut" type="number" step="any">
         <label>Max Risk per Trade (%)</label><input id="cap-risk-trade" type="number" step="any">
 
         <div style="color:var(--text-dim); margin-top:16px; padding-top:12px; border-top:1px solid var(--line); font-size:12px;">
@@ -359,6 +381,7 @@
         </div>
         <label>Alloc — Equity (%)</label><input id="cap-alloc-equity" type="number" step="any">
         <label>Alloc — F&O (%)</label><input id="cap-alloc-fno" type="number" step="any">
+        <label>Alloc — Index Future (%)</label><input id="cap-alloc-indexfut" type="number" step="any">
         <label>Alloc — Commodity (%)</label><input id="cap-alloc-comm" type="number" step="any">
 
         <div style="color:var(--text-dim); margin-top:16px; padding-top:12px; border-top:1px solid var(--line); font-size:12px;">
@@ -373,26 +396,8 @@
         <button onclick="saveCapital()">Save</button>
         <span class="save-note" id="cap-saved"></span>
 
-        <div class="side-row" id="playbook-row" onclick="toggleSideRow('playbook')">
+        <div class="side-row" id="playbook-row" onclick="openPlaybookModal()">
           <span>Playbook</span><span class="chev">›</span>
-        </div>
-        <div class="side-body" id="playbook-body">
-          <div style="color:var(--text-dim); margin-bottom:10px;">
-            Edit these once, then leave them alone — this is what you check your trades against,
-            not something to rewrite mid-trade.
-          </div>
-          <div id="rules-blocks"></div>
-          <button onclick="saveRules()">Save Playbook</button>
-          <span class="save-note" id="rules-saved"></span>
-
-          <div style="color:var(--text-dim); margin:16px 0 10px 0; padding-top:12px; border-top:1px solid var(--line);">
-            Trade Setups &amp; Multipliers — these are the options in the Journal's "Setup / Thesis" dropdown. The
-            multiplier scales the suggested position size for trades tagged with that setup (1.0 = no change).
-          </div>
-          <div id="setup-options-list"></div>
-          <button class="ghost small" onclick="addSetupOptionRow()">+ Add Setup</button>
-          <button onclick="saveSetupOptions()">Save Setups</button>
-          <span class="save-note" id="setups-saved"></span>
         </div>
       </div>
 
@@ -439,6 +444,31 @@
 
 </main>
 
+<div class="modal-backdrop" id="playbook-modal-backdrop" onclick="if(event.target===this) closePlaybookModal()">
+  <div class="panel modal-panel wide">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:12px;">
+      <h2 style="margin:0; border:none; padding:0;">Playbook</h2>
+      <button class="ghost small" onclick="closePlaybookModal()">Close</button>
+    </div>
+    <div style="color:var(--text-dim); margin-bottom:10px;">
+      Edit these once, then leave them alone — this is what you check your trades against,
+      not something to rewrite mid-trade.
+    </div>
+    <div id="rules-blocks"></div>
+    <button onclick="saveRules()">Save Playbook</button>
+    <span class="save-note" id="rules-saved"></span>
+
+    <div style="color:var(--text-dim); margin:16px 0 10px 0; padding-top:12px; border-top:1px solid var(--line);">
+      Trade Setups &amp; Multipliers — these are the options in the Journal's "Setup / Thesis" dropdown. The
+      multiplier scales the suggested position size for trades tagged with that setup (1.0 = no change).
+    </div>
+    <div id="setup-options-list"></div>
+    <button class="ghost small" onclick="addSetupOptionRow()">+ Add Setup</button>
+    <button onclick="saveSetupOptions()">Save Setups</button>
+    <span class="save-note" id="setups-saved"></span>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="trade-modal-backdrop" onclick="if(event.target===this) closeTradeModal()">
   <div class="panel modal-panel">
     <h2 id="trade-modal-title">Log a Trade</h2>
@@ -448,6 +478,7 @@
           <option>Equity</option>
           <option>F&O - Futures</option>
           <option>F&O - Options</option>
+          <option>Index Future</option>
           <option>Commodity</option>
         </select>
       </div>
@@ -497,7 +528,7 @@ let session = null;
 
 const DEFAULT_SETUP_OPTIONS = ['Cup & Handle','Rectangle Breakout','Multiyear Resistance','Head & Shoulders','Macro Thesis'];
 function emptyRules(){ return { sizing:'', stops:'', trailing:'', targets:'', leverage:'', setups:'', checklist:'', nonnegotiables:'', setupOptions: DEFAULT_SETUP_OPTIONS.slice(), setupMultipliers: {} }; }
-function emptyCapital(){ return { total:'', levEquity:'', levFno:'', levComm:'', riskPerTrade:'', multLargeCap:1.0, multMidCap:0.8, multSmallCap:0.5, multRiskOn:1.2, multNeutral:1.0, multRiskOff:0.6, allocEquityPct:50, allocFnoPct:30, allocCommPct:20 }; }
+function emptyCapital(){ return { total:'', levEquity:'', levFno:'', levComm:'', levIndexfut:'', riskPerTrade:'', multLargeCap:1.0, multMidCap:0.8, multSmallCap:0.5, multRiskOn:1.2, multNeutral:1.0, multRiskOff:0.6, allocEquityPct:50, allocFnoPct:30, allocCommPct:20, allocIndexfutPct:20 }; }
 
 let trades = [];
 let rules = emptyRules();
@@ -506,6 +537,7 @@ let liveRegime = {};
 let regimeHistory = [];
 let currentRegime = null;
 let breadthHistory = [];
+let emaStateCache = null; // last-fetched ema_state.state, kept for renderSectorStrength() to reuse
 
 // ---------- theme ----------
 // A device display preference, not app data — same category as the Supabase SDK's own
@@ -514,7 +546,7 @@ let breadthHistory = [];
 // there's no flash of the wrong theme.
 (function applyStoredTheme(){
   const stored = localStorage.getItem('theme');
-  if(stored) document.documentElement.dataset.theme = stored;
+  document.documentElement.dataset.theme = stored || 'light';
 })();
 function toggleTheme(){
   const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
@@ -530,6 +562,16 @@ function toggleSideRow(id){
   const opening = !body.classList.contains('open');
   row.classList.toggle('open', opening);
   body.classList.toggle('open', opening);
+}
+
+// Playbook needs real editing room (multiple textareas + the setup-multiplier rows), which
+// the 240px left panel can't comfortably give it — opens as a wide modal instead of an
+// in-panel accordion, reusing the same modal-backdrop pattern as the trade-edit modal.
+function openPlaybookModal(){
+  document.getElementById('playbook-modal-backdrop').classList.add('active');
+}
+function closePlaybookModal(){
+  document.getElementById('playbook-modal-backdrop').classList.remove('active');
 }
 
 // ---------- auth ----------
@@ -638,10 +680,11 @@ async function fetchCapital(){
   const { data } = await sb.from('capital').select('*').eq('user_id', session.user.id).maybeSingle();
   capital = data ? {
     total:data.total, levEquity:data.lev_equity, levFno:data.lev_fno,
-    levComm:data.lev_comm, riskPerTrade:data.risk_per_trade,
+    levComm:data.lev_comm, levIndexfut:data.lev_indexfut, riskPerTrade:data.risk_per_trade,
     multLargeCap:data.mult_large_cap, multMidCap:data.mult_mid_cap, multSmallCap:data.mult_small_cap,
     multRiskOn:data.mult_risk_on, multNeutral:data.mult_neutral, multRiskOff:data.mult_risk_off,
-    allocEquityPct:data.alloc_equity_pct ?? 50, allocFnoPct:data.alloc_fno_pct ?? 30, allocCommPct:data.alloc_comm_pct ?? 20
+    allocEquityPct:data.alloc_equity_pct ?? 50, allocFnoPct:data.alloc_fno_pct ?? 30, allocCommPct:data.alloc_comm_pct ?? 20,
+    allocIndexfutPct:data.alloc_indexfut_pct ?? 20
   } : emptyCapital();
 }
 async function loadAllData(){
@@ -687,6 +730,7 @@ tickClock(); setInterval(tickClock, 30000);
 function segClass(seg){
   if(seg==='Equity') return 'equity';
   if(seg==='Commodity') return 'comm';
+  if(seg==='Index Future') return 'indexfut';
   return 'fno';
 }
 
@@ -1030,6 +1074,7 @@ function loadCapitalForm(){
   document.getElementById('cap-lev-equity').value = capital.levEquity;
   document.getElementById('cap-lev-fno').value = capital.levFno;
   document.getElementById('cap-lev-comm').value = capital.levComm;
+  document.getElementById('cap-lev-indexfut').value = capital.levIndexfut;
   document.getElementById('cap-risk-trade').value = capital.riskPerTrade;
   document.getElementById('cap-mult-large').value = capital.multLargeCap;
   document.getElementById('cap-mult-mid').value = capital.multMidCap;
@@ -1040,6 +1085,7 @@ function loadCapitalForm(){
   document.getElementById('cap-alloc-equity').value = capital.allocEquityPct;
   document.getElementById('cap-alloc-fno').value = capital.allocFnoPct;
   document.getElementById('cap-alloc-comm').value = capital.allocCommPct;
+  document.getElementById('cap-alloc-indexfut').value = capital.allocIndexfutPct;
 }
 async function saveCapital(){
   capital = {
@@ -1047,6 +1093,7 @@ async function saveCapital(){
     levEquity: parseFloat(document.getElementById('cap-lev-equity').value)||0,
     levFno: parseFloat(document.getElementById('cap-lev-fno').value)||0,
     levComm: parseFloat(document.getElementById('cap-lev-comm').value)||0,
+    levIndexfut: parseFloat(document.getElementById('cap-lev-indexfut').value)||0,
     riskPerTrade: parseFloat(document.getElementById('cap-risk-trade').value)||0,
     multLargeCap: parseFloat(document.getElementById('cap-mult-large').value)||1.0,
     multMidCap: parseFloat(document.getElementById('cap-mult-mid').value)||1.0,
@@ -1056,15 +1103,17 @@ async function saveCapital(){
     multRiskOff: parseFloat(document.getElementById('cap-mult-riskoff').value)||1.0,
     allocEquityPct: parseFloat(document.getElementById('cap-alloc-equity').value)||0,
     allocFnoPct: parseFloat(document.getElementById('cap-alloc-fno').value)||0,
-    allocCommPct: parseFloat(document.getElementById('cap-alloc-comm').value)||0
+    allocCommPct: parseFloat(document.getElementById('cap-alloc-comm').value)||0,
+    allocIndexfutPct: parseFloat(document.getElementById('cap-alloc-indexfut').value)||0
   };
   const { error } = await sb.from('capital').upsert({
     user_id: session.user.id,
     total: capital.total, lev_equity: capital.levEquity, lev_fno: capital.levFno,
-    lev_comm: capital.levComm, risk_per_trade: capital.riskPerTrade,
+    lev_comm: capital.levComm, lev_indexfut: capital.levIndexfut, risk_per_trade: capital.riskPerTrade,
     mult_large_cap: capital.multLargeCap, mult_mid_cap: capital.multMidCap, mult_small_cap: capital.multSmallCap,
     mult_risk_on: capital.multRiskOn, mult_neutral: capital.multNeutral, mult_risk_off: capital.multRiskOff,
-    alloc_equity_pct: capital.allocEquityPct, alloc_fno_pct: capital.allocFnoPct, alloc_comm_pct: capital.allocCommPct
+    alloc_equity_pct: capital.allocEquityPct, alloc_fno_pct: capital.allocFnoPct, alloc_comm_pct: capital.allocCommPct,
+    alloc_indexfut_pct: capital.allocIndexfutPct
   }, { onConflict: 'user_id' });
   if(error){ alert('Could not save capital settings: '+error.message); return; }
   document.getElementById('cap-saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN');
@@ -1078,6 +1127,7 @@ function computeExposureBySegment(){
     'Equity': {cap: capital.levEquity, exp:0},
     'F&O - Futures': {cap: capital.levFno, exp:0},
     'F&O - Options': {cap: capital.levFno, exp:0},
+    'Index Future': {cap: capital.levIndexfut, exp:0},
     'Commodity': {cap: capital.levComm, exp:0}
   };
   open.forEach(t=>{
@@ -1095,6 +1145,7 @@ function computeExposureBySegment(){
 function segmentAllocPct(segment){
   if(segment==='Equity') return capital.allocEquityPct;
   if(segment==='F&O - Futures' || segment==='F&O - Options') return capital.allocFnoPct;
+  if(segment==='Index Future') return capital.allocIndexfutPct;
   if(segment==='Commodity') return capital.allocCommPct;
   return 100;
 }
@@ -1125,31 +1176,67 @@ function renderExposure(){
 }
 
 // ---------- market regime ----------
-// v1 heuristic thresholds — provisional, tune by hand later; not yet exposed as a config UI.
-// See .claude/skills/nse-market-data/SKILL.md for the reasoning behind these numbers.
+// Regime Score v2 — 5 factors, weighted 20% each, averaged into a 0-100 composite.
+// See .claude/skills/nse-market-data/SKILL.md for the full rationale behind each band.
+// Any missing factor makes the whole score null (rendered as "Scoring…") rather than
+// silently averaging over fewer inputs — a partial score would be misleading, not just approximate.
+function vixFactor(vix){
+  if(isNaN(vix)) return null;
+  if(vix < 14) return 100;
+  if(vix < 20) return 66;
+  if(vix < 25) return 33;
+  return 0;
+}
+function breadth50Factor(pct){
+  if(pct==null || isNaN(pct)) return null;
+  if(pct < 20) return 0;
+  if(pct <= 50) return 60;
+  if(pct <= 70) return 100;
+  return 40; // >70% above 50 EMA — overbought/extended, a caution flag not an all-clear
+}
+function pcrFactor(pcr){
+  if(pcr==null || isNaN(pcr)) return null;
+  if(pcr <= 0.8) return 0;
+  if(pcr >= 1.2) return 100;
+  return (pcr - 0.8) / (1.2 - 0.8) * 100;
+}
+function highsLowsFactor(newHighs, newLows){
+  if(isNaN(newHighs) || isNaN(newLows)) return null;
+  if(newHighs > newLows) return 100;
+  if(newLows > newHighs * 1.5) return 0;
+  return 50;
+}
+function nifty500Ema20Factor(close, ema20){
+  if(close==null || ema20==null || isNaN(close) || isNaN(ema20) || !ema20) return null;
+  const pctDiff = (close - ema20) / ema20 * 100;
+  if(pctDiff > 0) return 100;
+  if(pctDiff >= -2) return 50;
+  return 0;
+}
 function computeRegimeScore(s){
-  let score = 0;
-  if(!isNaN(s.vix)){
-    if(s.vix < 13) score += 1;
-    else if(s.vix > 25) score -= 2;
-    else if(s.vix > 18) score -= 1;
-  }
-  if(!isNaN(s.fiiNet)){
-    if(s.fiiNet > 1000) score += 1;
-    else if(s.fiiNet < -1000) score -= 1;
-  }
-  if(!isNaN(s.newHighs) && !isNaN(s.newLows)){
-    if(s.newHighs > s.newLows) score += 1;
-    else if(s.newLows > s.newHighs * 1.5) score -= 1;
-  }
-  if(s.pcr!=null && !isNaN(s.pcr)){
-    if(s.pcr > 1.2) score += 1;
-    else if(s.pcr < 0.8) score -= 1;
-  }
+  const factors = {
+    vix: vixFactor(s.vix),
+    breadth50: breadth50Factor(s.pctAbove50Ema),
+    pcr: pcrFactor(s.pcr),
+    highsLows: highsLowsFactor(s.newHighs, s.newLows),
+    nifty500Ema20: nifty500Ema20Factor(s.nifty500Close, s.nifty500Ema20)
+  };
+  const vals = Object.values(factors);
+  if(vals.some(v=>v==null)) return { score:null, label:null, factors };
+  const score = Math.round(vals.reduce((a,b)=>a+b,0) / vals.length);
   let label = 'Neutral';
-  if(score >= 2) label = 'Risk-On';
-  else if(score <= -2) label = 'Risk-Off';
-  return { score, label };
+  if(score >= 65) label = 'Risk-On';
+  else if(score <= 35) label = 'Risk-Off';
+  return { score, label, factors };
+}
+// Incremental EMA20 of the Nifty 500 index itself, using yesterday's saved value
+// (currentRegime.nifty500Ema20) plus today's live close — mirrors the per-stock EMA
+// update in updateBreadthIfNeeded(), just scoped to market_regime instead of ema_state.
+const NIFTY500_EMA20_K = 2/21;
+function computeNifty500Ema20Today(){
+  if(liveRegime.nifty500Close==null) return null;
+  if(!currentRegime || isNaN(currentRegime.nifty500Ema20) || currentRegime.nifty500Ema20==null) return null;
+  return liveRegime.nifty500Close*NIFTY500_EMA20_K + currentRegime.nifty500Ema20*(1-NIFTY500_EMA20_K);
 }
 
 // NSE is closed every Saturday/Sunday, plus a handful of weekday holidays each year — on both,
@@ -1191,14 +1278,32 @@ async function fetchRegimeLive(){
     if(closed) liveRegime.marketClosed = closed;
   }
   renderRegimeTab();
-  if(!liveRegime.fetchError && !liveRegime.marketClosed) await autoSaveRegimeSnapshot();
+  await maybeAutoSaveRegime();
+}
+
+// The score needs liveRegime (VIX/PCR/highs-lows/NIFTY500 close, one fetch) AND
+// breadthHistory[0] (% above 50 EMA, a separate daily pipeline) AND currentRegime's prior
+// nifty500Ema20 — these arrive from independent async chains with no ordering guarantee,
+// so this is called after each one resolves and only actually saves once, the first time
+// every input is ready (a module-level flag, reset per page load, guards against saving twice).
+let regimeAutoSavedForDate = null;
+async function maybeAutoSaveRegime(){
+  if(liveRegime.fetchError || liveRegime.marketClosed) return;
+  if(liveRegime.vix===undefined) return; // liveRegime not fetched yet
+  if(!breadthHistory || !breadthHistory[0]) return; // breadth pipeline not done yet
+  if(computeNifty500Ema20Today()==null) return; // no prior EMA20 to roll forward from yet
+  const today = new Date().toISOString().slice(0,10);
+  if(regimeAutoSavedForDate === today) return;
+  regimeAutoSavedForDate = today;
+  await autoSaveRegimeSnapshot();
 }
 
 async function fetchLatestRegime(){
   const { data } = await sb.from('market_regime').select('*').order('snapshot_date', { ascending:false }).limit(1).maybeSingle();
   currentRegime = data ? {
     snapshotDate:data.snapshot_date, vix:numOrNaN(data.vix), fiiNet:numOrNaN(data.fii_net), diiNet:numOrNaN(data.dii_net),
-    newHighs:numOrNaN(data.new_highs), newLows:numOrNaN(data.new_lows), pcr:data.pcr, regimeLabel:data.regime_label, notes:data.notes||''
+    newHighs:numOrNaN(data.new_highs), newLows:numOrNaN(data.new_lows), pcr:data.pcr, regimeLabel:data.regime_label, notes:data.notes||'',
+    nifty500Close:numOrNaN(data.nifty500_close), nifty500Ema20:numOrNaN(data.nifty500_ema20)
   } : null;
 }
 
@@ -1228,13 +1333,18 @@ function renderRegimeTab(){
     document.getElementById('regime-fetched-label').textContent = '';
     return;
   }
+  const pctAbove50Ema = breadthHistory[0] ? breadthHistory[0].pctAbove50Ema : null;
+  const nifty500Ema20Today = computeNifty500Ema20Today();
   const scored = computeRegimeScore({
-    vix: numOrNaN(liveRegime.vix), fiiNet: numOrNaN(liveRegime.fiiNet),
+    vix: numOrNaN(liveRegime.vix), pcr: liveRegime.pcr ?? null,
     newHighs: numOrNaN(liveRegime.newHighs), newLows: numOrNaN(liveRegime.newLows),
-    pcr: liveRegime.pcr ?? null
+    pctAbove50Ema, nifty500Close: liveRegime.nifty500Close ?? null, nifty500Ema20: nifty500Ema20Today
   });
   document.getElementById('regime-fetched-label').textContent = liveRegime.fetchedAt ? ('Fetched at ' + new Date(liveRegime.fetchedAt).toLocaleTimeString('en-IN')) : '';
   const tile = (label, val, err) => `<div class="stat"><div class="num">${val==null?'-':(typeof val==='number'&&!Number.isInteger(val)?val.toFixed(2):val)}</div><div class="lbl">${label}${err?' <span class=\"flag\">'+err+'</span>':''}</div></div>`;
+  const scoreTile = scored.score==null
+    ? `<div class="stat"><div class="num">Scoring…</div><div class="lbl">Regime</div></div>`
+    : `<div class="stat"><div class="num ${scoreClass(scored.label)}">${scored.label}</div><div class="lbl">Regime (score ${scored.score})</div></div>`;
   document.getElementById('regime-statgrid').innerHTML =
     tile('India VIX', liveRegime.vix, liveRegime.vixError) +
     tile('FII Net (₹cr)', liveRegime.fiiNet, liveRegime.fiiDiiError) +
@@ -1243,7 +1353,7 @@ function renderRegimeTab(){
     tile('New Lows (52w)', liveRegime.newLows, liveRegime.newLowsError) +
     tile('PCR', liveRegime.pcr, liveRegime.pcrError) +
     tile('FII Options PCR', liveRegime.fiiOptionsPcr, liveRegime.fiiOptionsPcrError) +
-    `<div class="stat"><div class="num ${scoreClass(scored.label)}">${scored.label}</div><div class="lbl">Regime (score ${scored.score})</div></div>`;
+    scoreTile;
 }
 
 // Auto-saves on every successful live fetch (tab-open and manual "Refresh from NSE") — the
@@ -1254,16 +1364,20 @@ function renderRegimeTab(){
 // be jarring, matching the same "degrade silently" spirit as updateBreadthIfNeeded().
 async function autoSaveRegimeSnapshot(){
   const pcr = liveRegime.pcr ?? null;
+  const pctAbove50Ema = breadthHistory[0] ? breadthHistory[0].pctAbove50Ema : null;
+  const nifty500Ema20Today = computeNifty500Ema20Today();
   const scored = computeRegimeScore({
-    vix: numOrNaN(liveRegime.vix), fiiNet: numOrNaN(liveRegime.fiiNet),
-    newHighs: numOrNaN(liveRegime.newHighs), newLows: numOrNaN(liveRegime.newLows), pcr
+    vix: numOrNaN(liveRegime.vix), pcr,
+    newHighs: numOrNaN(liveRegime.newHighs), newLows: numOrNaN(liveRegime.newLows),
+    pctAbove50Ema, nifty500Close: liveRegime.nifty500Close ?? null, nifty500Ema20: nifty500Ema20Today
   });
   const row = {
     user_id: session.user.id,
     snapshot_date: new Date().toISOString().slice(0,10),
     vix: liveRegime.vix ?? null, fii_net: liveRegime.fiiNet ?? null, dii_net: liveRegime.diiNet ?? null,
     new_highs: liveRegime.newHighs ?? null, new_lows: liveRegime.newLows ?? null,
-    pcr, regime_label: scored.label
+    pcr, regime_label: scored.label,
+    nifty500_close: liveRegime.nifty500Close ?? null, nifty500_ema20: nifty500Ema20Today
   };
   const { error } = await sb.from('market_regime').upsert(row, { onConflict: 'user_id,snapshot_date' });
   const savedEl = document.getElementById('regime-saved');
@@ -1368,6 +1482,51 @@ function renderBreadthCharts(){
   sMoveVol.down.setData(asc.filter(r=>r.countDown4pctVol!=null).map(r=>({time:r.snapshotDate, value:-r.countDown4pctVol})));
 }
 
+// ---------- sector strength ----------
+// Pure client-side aggregation — zero new serverless calls or DB writes. sectorsData is a
+// static, manually-refreshed constituent map (sectors.json, same convention as nifty500.json);
+// emaStateCache is ema_state's jsonb blob, already refreshed daily by updateBreadthIfNeeded().
+// A sector symbol with no emaStateCache entry (outside the tracked NIFTY 500 universe, or a
+// stock too new to have a seeded EMA200) is silently skipped from that sector's count —
+// same "don't fabricate data for untracked symbols" rule used elsewhere in this file.
+let sectorsData = null;
+function sectorBarColor(pct){
+  if(pct >= 60) return chartColor('--green');
+  if(pct >= 35) return chartColor('--amber');
+  return chartColor('--red');
+}
+function renderSectorStrength(){
+  const container = document.getElementById('sector-strength-panel');
+  if(!container) return; // not on the Market Regime view
+  if(!sectorsData){
+    container.innerHTML = '<div class="empty">Loading sector data…</div>';
+    return;
+  }
+  if(!emaStateCache){
+    container.innerHTML = '<div class="empty">Sector data needs today\'s breadth update first.</div>';
+    return;
+  }
+  const rows = Object.keys(sectorsData).map(sector=>{
+    let above = 0, counted = 0;
+    sectorsData[sector].forEach(sym=>{
+      const st = emaStateCache[sym];
+      if(!st || st.ema200==null || st.lastClose==null) return;
+      counted++;
+      if(st.lastClose > st.ema200) above++;
+    });
+    return counted ? { sector, pct: above/counted*100 } : null;
+  }).filter(Boolean).sort((a,b)=>b.pct-a.pct);
+
+  container.innerHTML = rows.length===0 ? '<div class="empty">No sector data available yet.</div>' : rows.map(r=>`
+    <div class="sector-bar-row">
+      <div class="sector-bar-label">${r.sector}</div>
+      <div class="sector-bar-track"><div class="sector-bar-fill" style="width:${r.pct.toFixed(0)}%; background:${sectorBarColor(r.pct)}"></div></div>
+      <div class="sector-bar-pct">${r.pct.toFixed(0)}%</div>
+    </div>
+  `).join('');
+}
+fetch('/sectors.json').then(r=>r.json()).then(d=>{ sectorsData = d; renderSectorStrength(); }).catch(()=>{ /* panel just shows "Loading…" indefinitely — non-critical, static asset */ });
+
 // Triggered on opening the Market Regime tab — no cron, since a cron-invoked function
 // would need a service_role key (or a long-lived stored credential) to write to Supabase,
 // which this app never does. Fetches just today's single bhavcopy (fast) and applies the
@@ -1380,13 +1539,13 @@ async function updateBreadthIfNeeded(){
 
   if(isWeekendToday()){
     statusEl.textContent = `Market closed (Saturday/Sunday) — breadth not updated today. Last known: ${latest ? latest.snapshot_date : 'none'}.`;
-    await fetchBreadthHistory();
+    await afterBreadthUpdate();
     return;
   }
 
   if(latest && latest.snapshot_date === today){
     statusEl.textContent = `Breadth is up to date (${today}).`;
-    await fetchBreadthHistory();
+    await afterBreadthUpdate();
     return;
   }
 
@@ -1395,17 +1554,17 @@ async function updateBreadthIfNeeded(){
     resp = await (await fetch('/api/breadth')).json();
   } catch(e){
     statusEl.textContent = `Could not check for a breadth update. Last known: ${latest ? latest.snapshot_date : 'none'}.`;
-    await fetchBreadthHistory();
+    await afterBreadthUpdate();
     return;
   }
   if(resp.error || !resp.closes){
     statusEl.textContent = `Breadth not updated yet (${resp.error||'no data'}). Last known: ${latest ? latest.snapshot_date : 'none'}.`;
-    await fetchBreadthHistory();
+    await afterBreadthUpdate();
     return;
   }
   if(latest && resp.date === latest.snapshot_date){
     statusEl.textContent = `Breadth is up to date (${resp.date}).`;
-    await fetchBreadthHistory();
+    await afterBreadthUpdate();
     return;
   }
 
@@ -1455,7 +1614,7 @@ async function updateBreadthIfNeeded(){
 
   if(counted === 0){
     statusEl.textContent = `Breadth update skipped — no matching symbols in ${resp.date}'s data.`;
-    await fetchBreadthHistory();
+    await afterBreadthUpdate();
     return;
   }
 
@@ -1467,8 +1626,27 @@ async function updateBreadthIfNeeded(){
     count_up20_5d: up20_5d, count_up30_5d: up30_5d,
     count_up4pct_vol: up4pctVol, count_down4pct_vol: down4pctVol
   }, { onConflict: 'user_id,snapshot_date' });
+  emaStateCache = state;
   statusEl.textContent = `Breadth updated for ${resp.date} (${counted} symbols).`;
+  await afterBreadthUpdate();
+}
+
+// Runs after every updateBreadthIfNeeded() exit path (whether it actually updated anything
+// or short-circuited on already-current/weekend/error) — re-renders the breadth charts, then
+// gives the Regime Score tile a chance to pick up the now-current % above 50 EMA and
+// (if this is the first time all inputs are ready) triggers the once-a-day auto-save.
+async function afterBreadthUpdate(){
   await fetchBreadthHistory();
+  // updateBreadthIfNeeded() only refreshes emaStateCache on the branch that actually
+  // recomputes EMAs — every other exit path (already up to date, weekend, fetch error)
+  // still needs it populated at least once per page load for renderSectorStrength().
+  if(!emaStateCache){
+    const { data: stateRow } = await sb.from('ema_state').select('state').maybeSingle();
+    emaStateCache = stateRow ? stateRow.state : {};
+  }
+  renderSectorStrength();
+  if(!liveRegime.fetchError && !liveRegime.marketClosed && liveRegime.vix!==undefined) renderRegimeTab();
+  await maybeAutoSaveRegime();
 }
 
 // ---------- init ----------
