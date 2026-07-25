@@ -2,9 +2,9 @@
 -- Run once in the Supabase SQL Editor (Project → SQL Editor → New query) for a FRESH project only.
 -- If a project already has these tables with data, do NOT run this file — use the incremental
 -- migration files in this folder instead (migration_002_setup_regime_sizing.sql,
--- migration_003_ema_breadth.sql, migration_004_segment_alloc_and_breadth_extras.sql), which
--- are additive (ALTER TABLE ADD COLUMN IF NOT EXISTS / CREATE TABLE IF NOT EXISTS) and safe
--- to re-run.
+-- migration_003_ema_breadth.sql, migration_004_segment_alloc_and_breadth_extras.sql,
+-- migration_005_indexfuture_and_nifty500ema.sql), which are additive
+-- (ALTER TABLE ADD COLUMN IF NOT EXISTS / CREATE TABLE IF NOT EXISTS) and safe to re-run.
 
 create extension if not exists pgcrypto;
 
@@ -66,6 +66,8 @@ create table public.capital (
   alloc_equity_pct numeric not null default 50, -- % of total capital earmarked for Equity —
   alloc_fno_pct    numeric not null default 30, -- position-sizing risk % is measured against
   alloc_comm_pct   numeric not null default 20, -- this slice, not 100% of total, per segment
+  lev_indexfut     numeric default 0,           -- Index Future has its own leverage cap +
+  alloc_indexfut_pct numeric not null default 20, -- allocation slice, separate from stock F&O
   updated_at     timestamptz not null default now()
 );
 
@@ -86,6 +88,10 @@ create table public.market_regime (
   pcr           numeric,       -- auto-fetched via NSE participant-OI data, see nse-market-data skill
   regime_label  text,          -- 'Risk-On' | 'Neutral' | 'Risk-Off'
   notes         text default '', -- unused by the UI (removed) but kept so old rows aren't orphaned
+  nifty500_close numeric,      -- Nifty 500 index's own daily close (ind_close_all file)
+  nifty500_ema20  numeric,     -- incremental 20-EMA of the above — feeds the Regime Score's
+                                -- "index vs. its own trend" factor, seeded once via
+                                -- scripts/backfill_nifty500_ema20.py then rolled forward daily
   created_at    timestamptz not null default now(),
   unique (user_id, snapshot_date)
 );
