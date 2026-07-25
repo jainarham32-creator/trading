@@ -85,7 +85,7 @@
   }
   .tab.active{color:var(--amber); border-bottom:2px solid var(--amber);}
   .tab:hover{color:var(--text);}
-  main{padding:20px; max-width:1200px; margin:0 auto;}
+  main{padding:20px;}
   .view{display:none;}
   .view.active{display:block;}
   .grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
@@ -205,10 +205,19 @@
   .setup-row input{margin-top:0;}
   .paged-layout{display:grid; grid-template-columns:240px 1fr; gap:16px;}
   @media (max-width:900px){.paged-layout{grid-template-columns:1fr;}}
+  .paged-layout .main-col{max-width:960px;}
   .side-panel button{width:100%;}
   .trade-book-list{max-height:520px; overflow-y:auto;}
   .trade-book-row{display:flex; align-items:center; justify-content:space-between; gap:6px; padding:6px 0; border-bottom:1px solid var(--line); cursor:pointer; font-size:12px;}
   .trade-book-row:hover{color:var(--amber);}
+  .side-row{cursor:pointer; padding:10px 0; border-top:1px solid var(--line); margin-top:10px; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-dim); display:flex; justify-content:space-between; align-items:center;}
+  .side-row:hover{color:var(--amber);}
+  .side-row .chev{transition:transform .15s; font-size:13px;}
+  .side-row.open .chev{transform:rotate(90deg);}
+  .side-body{display:none; padding:10px 0 4px 0; font-size:12px; color:var(--text);}
+  .side-body.open{display:block;}
+  .side-body p{margin:0 0 8px 0;}
+  .side-body ul{padding-left:16px; margin:4px 0 8px 0;}
   .summary-strip{display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--line);}
   .summary-strip .mix{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
   .summary-strip .lev{color:var(--text-dim); font-size:12px;}
@@ -272,17 +281,31 @@
       <div class="panel side-panel">
         <h2>Display</h2>
         <button class="ghost" onclick="toggleTheme()">🌓 Dark / Light</button>
+
+        <div class="side-row" id="regime-score-info-row" onclick="toggleSideRow('regime-score-info')">
+          <span>Regime Score</span><span class="chev">›</span>
+        </div>
+        <div class="side-body" id="regime-score-info-body">
+          <p><b>Thesis:</b> a simple rules-based read of risk appetite from four inputs — volatility, institutional flows, market breadth, and options positioning — bucketed into Risk-On / Neutral / Risk-Off. It's a cross-check against your Playbook's setups, not a standalone signal.</p>
+          <p><b>Criteria:</b></p>
+          <ul>
+            <li>VIX &lt; 13 → +1 · &gt; 18 → −1 · &gt; 25 → −2</li>
+            <li>FII Net &gt; ₹1000cr → +1 · &lt; −₹1000cr → −1</li>
+            <li>New Highs &gt; New Lows → +1 · New Lows &gt; 1.5× New Highs → −1</li>
+            <li>PCR &gt; 1.2 → +1 · &lt; 0.8 → −1</li>
+          </ul>
+          <p>Score ≥ 2 → <span class="pos">Risk-On</span>. Score ≤ −2 → <span class="neg">Risk-Off</span>. Else Neutral.</p>
+        </div>
       </div>
 
-      <div>
+      <div class="main-col">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
           <div class="statgrid" id="regime-statgrid" style="flex:1"></div>
-          <div id="regime-fetched-label" style="font-size:11px; color:var(--text-dim); white-space:nowrap; padding-top:4px;"></div>
-        </div>
-
-        <div class="panel">
-          <button class="ghost small" onclick="fetchRegimeLive()">Refresh from NSE</button>
-          <span class="save-note" id="regime-saved"></span>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; white-space:nowrap; padding-top:4px;">
+            <div id="regime-fetched-label" style="font-size:11px; color:var(--text-dim);"></div>
+            <button class="ghost small" onclick="fetchRegimeLive()" style="margin-top:0;">Refresh from NSE</button>
+            <span class="save-note" id="regime-saved" style="margin-top:0;"></span>
+          </div>
         </div>
 
         <div class="panel">
@@ -349,16 +372,11 @@
         <label>Mult — Risk-Off</label><input id="cap-mult-riskoff" type="number" step="any">
         <button onclick="saveCapital()">Save</button>
         <span class="save-note" id="cap-saved"></span>
-      </div>
 
-      <div>
-        <div class="panel">
-          <h2>Current Exposure (from open positions)</h2>
-          <div id="exposure-table"></div>
+        <div class="side-row" id="playbook-row" onclick="toggleSideRow('playbook')">
+          <span>Playbook</span><span class="chev">›</span>
         </div>
-
-        <div class="panel">
-          <h2>Your Trading Constitution</h2>
+        <div class="side-body" id="playbook-body">
           <div style="color:var(--text-dim); margin-bottom:10px;">
             Edit these once, then leave them alone — this is what you check your trades against,
             not something to rewrite mid-trade.
@@ -366,18 +384,22 @@
           <div id="rules-blocks"></div>
           <button onclick="saveRules()">Save Playbook</button>
           <span class="save-note" id="rules-saved"></span>
-        </div>
 
-        <div class="panel">
-          <h2>Trade Setups &amp; Multipliers</h2>
-          <div style="color:var(--text-dim); margin-bottom:10px;">
-            These are the options in the Journal's "Setup / Thesis" dropdown. The multiplier scales the suggested
-            position size for trades tagged with that setup (1.0 = no change).
+          <div style="color:var(--text-dim); margin:16px 0 10px 0; padding-top:12px; border-top:1px solid var(--line);">
+            Trade Setups &amp; Multipliers — these are the options in the Journal's "Setup / Thesis" dropdown. The
+            multiplier scales the suggested position size for trades tagged with that setup (1.0 = no change).
           </div>
           <div id="setup-options-list"></div>
           <button class="ghost small" onclick="addSetupOptionRow()">+ Add Setup</button>
           <button onclick="saveSetupOptions()">Save Setups</button>
           <span class="save-note" id="setups-saved"></span>
+        </div>
+      </div>
+
+      <div class="main-col">
+        <div class="panel">
+          <h2>Current Exposure (from open positions)</h2>
+          <div id="exposure-table"></div>
         </div>
       </div>
     </div>
@@ -389,11 +411,15 @@
 
     <div class="paged-layout">
       <div class="panel side-panel">
-        <h2>Trade Book</h2>
-        <div class="trade-book-list" id="trade-book-list"></div>
+        <div class="side-row" id="trade-journal-row" onclick="toggleSideRow('trade-journal')" style="margin-top:0; border-top:none;">
+          <span>Trade Journal</span><span class="chev">›</span>
+        </div>
+        <div class="side-body" id="trade-journal-body">
+          <div class="trade-book-list" id="trade-book-list"></div>
+        </div>
       </div>
 
-      <div>
+      <div class="main-col">
         <div class="panel">
           <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:12px;">
             <h2 style="margin:0; border:none; padding:0;">Open Positions</h2>
@@ -494,6 +520,16 @@ function toggleTheme(){
   const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
   document.documentElement.dataset.theme = next;
   localStorage.setItem('theme', next);
+}
+
+// Collapsible left-panel rows (Regime Score thesis, Playbook, Trade Journal) — closed by
+// default, expand in place within the same narrow panel rather than navigating elsewhere.
+function toggleSideRow(id){
+  const row = document.getElementById(id+'-row');
+  const body = document.getElementById(id+'-body');
+  const opening = !body.classList.contains('open');
+  row.classList.toggle('open', opening);
+  body.classList.toggle('open', opening);
 }
 
 // ---------- auth ----------
@@ -1116,7 +1152,33 @@ function computeRegimeScore(s){
   return { score, label };
 }
 
+// NSE is closed every Saturday/Sunday, plus a handful of weekday holidays each year — on both,
+// the underlying www.nseindia.com endpoints just keep serving the last trading session's
+// numbers (they don't error), so without this check a tab-open on a non-trading day would
+// re-save Friday's data under today's date, faking an extra day into the history/charts.
+function isWeekendToday(){
+  const day = new Date().getDay();
+  return day === 0 || day === 6;
+}
+// fiiDiiDate comes straight from NSE's own response for whatever session it last has data
+// for — comparing it to today catches weekday holidays too (the file is a day or more stale)
+// without needing a maintained holiday calendar.
+function ddMonYyyy(d){
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${String(d.getDate()).padStart(2,'0')}-${months[d.getMonth()]}-${d.getFullYear()}`;
+}
+function marketClosedReason(live){
+  if(isWeekendToday()) return 'weekend';
+  if(live.fiiDiiDate && live.fiiDiiDate !== ddMonYyyy(new Date())) return 'holiday';
+  return null;
+}
+
 async function fetchRegimeLive(){
+  if(isWeekendToday()){
+    liveRegime = { marketClosed: 'weekend' };
+    renderRegimeTab();
+    return;
+  }
   document.getElementById('regime-statgrid').innerHTML = '<div class="empty">Loading…</div>';
   try{
     const r = await fetch('/api/regime');
@@ -1124,8 +1186,12 @@ async function fetchRegimeLive(){
   } catch(e){
     liveRegime = { fetchError: e.message || String(e) };
   }
+  if(!liveRegime.fetchError){
+    const closed = marketClosedReason(liveRegime);
+    if(closed) liveRegime.marketClosed = closed;
+  }
   renderRegimeTab();
-  if(!liveRegime.fetchError) await autoSaveRegimeSnapshot();
+  if(!liveRegime.fetchError && !liveRegime.marketClosed) await autoSaveRegimeSnapshot();
 }
 
 async function fetchLatestRegime(){
@@ -1145,9 +1211,21 @@ async function fetchRegimeHistory(){
   renderRegimeHistory();
 }
 
+function scoreClass(label){
+  return label==='Risk-On' ? 'pos' : (label==='Risk-Off' ? 'neg' : '');
+}
+
 function renderRegimeTab(){
   if(liveRegime.fetchError){
     document.getElementById('regime-statgrid').innerHTML = `<div class="empty">Could not reach /api/regime: ${liveRegime.fetchError}</div>`;
+    document.getElementById('regime-fetched-label').textContent = '';
+    return;
+  }
+  if(liveRegime.marketClosed){
+    const reasonText = liveRegime.marketClosed === 'weekend' ? 'Market closed (Saturday/Sunday)' : 'Market closed (holiday)';
+    const lastNote = currentRegime ? `Showing the last saved snapshot from ${currentRegime.snapshotDate} — nothing new is fetched or saved on a non-trading day.` : 'No saved snapshot yet.';
+    document.getElementById('regime-statgrid').innerHTML = `<div class="empty">${reasonText}. ${lastNote}</div>`;
+    document.getElementById('regime-fetched-label').textContent = '';
     return;
   }
   const scored = computeRegimeScore({
@@ -1165,7 +1243,7 @@ function renderRegimeTab(){
     tile('New Lows (52w)', liveRegime.newLows, liveRegime.newLowsError) +
     tile('PCR', liveRegime.pcr, liveRegime.pcrError) +
     tile('FII Options PCR', liveRegime.fiiOptionsPcr, liveRegime.fiiOptionsPcrError) +
-    `<div class="stat"><div class="num">${scored.label}</div><div class="lbl">Regime (score ${scored.score})</div></div>`;
+    `<div class="stat"><div class="num ${scoreClass(scored.label)}">${scored.label}</div><div class="lbl">Regime (score ${scored.score})</div></div>`;
 }
 
 // Auto-saves on every successful live fetch (tab-open and manual "Refresh from NSE") — the
@@ -1211,7 +1289,7 @@ function renderRegimeHistory(){
       <td>${isNaN(r.newHighs)?'-':r.newHighs}</td>
       <td>${isNaN(r.newLows)?'-':r.newLows}</td>
       <td>${r.pcr==null?'-':r.pcr.toFixed(2)}</td>
-      <td>${r.regimeLabel||'-'}</td>
+      <td class="${scoreClass(r.regimeLabel)}">${r.regimeLabel||'-'}</td>
     </tr>`).join('') + '</table>';
 
   renderHighsLowsChart();
@@ -1299,6 +1377,12 @@ async function updateBreadthIfNeeded(){
   const statusEl = document.getElementById('breadth-status');
   const today = new Date().toISOString().slice(0,10);
   const { data: latest } = await sb.from('market_breadth_history').select('snapshot_date').order('snapshot_date', { ascending:false }).limit(1).maybeSingle();
+
+  if(isWeekendToday()){
+    statusEl.textContent = `Market closed (Saturday/Sunday) — breadth not updated today. Last known: ${latest ? latest.snapshot_date : 'none'}.`;
+    await fetchBreadthHistory();
+    return;
+  }
 
   if(latest && latest.snapshot_date === today){
     statusEl.textContent = `Breadth is up to date (${today}).`;
