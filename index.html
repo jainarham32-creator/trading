@@ -1446,7 +1446,7 @@ function renderHighsLowsChart(){
 
 // ---------- EMA breadth ----------
 async function fetchBreadthHistory(){
-  const { data, error } = await sb.from('market_breadth_history').select('*').order('snapshot_date', { ascending:false }).limit(150);
+  const { data, error } = await sb.from('market_breadth_history').select('*').order('snapshot_date', { ascending:false }).limit(750);
   breadthHistory = error ? [] : data.map(d=>({
     snapshotDate: d.snapshot_date, pctAbove50Ema: d.pct_above_50ema, pctAbove200Ema: d.pct_above_200ema,
     countUp20_5d: d.count_up20_5d, countUp30_5d: d.count_up30_5d,
