@@ -8,6 +8,8 @@ and computes, per NIFTY 500 symbol:
   - a rolling 6-close window (-> "% up 20%/30% in 5 trading days")
   - a rolling 20-volume window (-> "up/down 4%+ on volume", volume > 1.5x its own
     trailing 20-day average, not just the price move alone)
+  - a rolling 66-close (~3 month) window (-> the Sector Strength panel's RS Rating,
+    a percentile rank of trailing return against the whole tracked universe)
 for the trading days beyond each metric's warm-up window (EMA's 200-day warmup is the
 long pole; by the time it's satisfied, the much shorter 5-day/20-day windows already are).
 
@@ -33,9 +35,10 @@ EMA50_PERIOD = 50
 EMA200_PERIOD = 200
 RECENT_CLOSES_WINDOW = 6    # need close from 5 trading days ago: hist[-6] vs hist[-1]
 RECENT_VOLUMES_WINDOW = 20  # trailing 20-day average volume, excluding today
+RS_WINDOW = 66              # ~3-month rolling window for the Sector Strength RS Rating factor
 VOLUME_MULTIPLE = 1.5       # today's volume must exceed 1.5x its own 20-day average to count
-TARGET_TRADING_DAYS = 700   # 200-day EMA warmup + ~500 days of real breadth output, with margin
-MAX_CALENDAR_DAYS_BACK = 1100  # archives confirmed retained at least 3 years back
+TARGET_TRADING_DAYS = 1250  # ~5 years of real breadth output beyond the 200-day EMA warmup
+MAX_CALENDAR_DAYS_BACK = 1900  # archives confirmed retained at least 5 years back
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -205,6 +208,7 @@ def main():
                 'lastDate': last_date,
                 'recentCloses': [round(c, 4) for c in close_history.get(sym, [])[-RECENT_CLOSES_WINDOW:]],
                 'recentVolumes': volume_history.get(sym, [])[-RECENT_VOLUMES_WINDOW:],
+                'rsCloses': [round(c, 4) for c in close_history.get(sym, [])[-RS_WINDOW:]],
             }
 
     print(f'Computed EMA state for {len(ema_state)} symbols.')

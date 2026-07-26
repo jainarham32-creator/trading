@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Trading Desk</title>
+<title>Market Terminal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
@@ -25,8 +25,6 @@
     --row-hover:#151710;
     --pill-equity-bg:#22301f;
     --pill-fno-bg:#3a2412;
-    --pill-comm-bg:#2a1f30;
-    --pill-comm-text:#b58fd6;
     --pill-indexfut-bg:#1f2a38;
     --pill-indexfut-text:#6fa8dc;
   }
@@ -41,8 +39,6 @@
     --row-hover:#f0eee4;
     --pill-equity-bg:#dcf0e2;
     --pill-fno-bg:#fbe6cf;
-    --pill-comm-bg:#ecdff5;
-    --pill-comm-text:#7a3fa3;
     --pill-indexfut-bg:#dbe9f7;
     --pill-indexfut-text:#2f6ca8;
   }
@@ -168,7 +164,6 @@
   }
   .pill.equity{background:var(--pill-equity-bg); color:var(--green);}
   .pill.fno{background:var(--pill-fno-bg); color:var(--amber);}
-  .pill.comm{background:var(--pill-comm-bg); color:var(--pill-comm-text);}
   .pill.indexfut{background:var(--pill-indexfut-bg); color:var(--pill-indexfut-text);}
   .pos{color:var(--green);}
   .neg{color:var(--red);}
@@ -213,11 +208,19 @@
   @media (max-width:900px){.paged-layout, .paged-layout.regime-layout{grid-template-columns:1fr;}}
   .paged-layout .main-col{max-width:960px;}
   .side-panel button{width:100%;}
-  .sector-bar-row{display:grid; grid-template-columns:96px 1fr 32px; align-items:center; gap:8px; margin-bottom:6px;}
+  .sector-bar-row{display:grid; grid-template-columns:96px 1fr 32px; align-items:center; gap:8px; margin-bottom:6px; cursor:pointer;}
+  .sector-bar-row:hover .sector-bar-label{color:var(--amber);}
   .sector-bar-label{font-size:11px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .sector-bar-track{background:var(--panel-2); border:1px solid var(--line); border-radius:2px; height:12px; overflow:hidden;}
   .sector-bar-fill{height:100%;}
   .sector-bar-pct{font-size:11px; color:var(--text-dim); text-align:right;}
+  .sector-detail{display:none; padding:4px 0 10px 0; margin-bottom:8px; border-bottom:1px solid var(--line);}
+  .sector-detail.open{display:block;}
+  .sector-detail-header{font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;}
+  .sector-detail-row{display:flex; justify-content:space-between; align-items:center; font-size:11px; padding:3px 0;}
+  .sector-detail-sym{color:var(--text);}
+  .sector-detail-rs{font-weight:bold; color:var(--text-dim);}
+  .fo-badge{font-size:9px; color:var(--amber-dim); border:1px solid var(--line); border-radius:2px; padding:0 3px; margin-left:4px;}
   .trade-book-list{max-height:520px; overflow-y:auto;}
   .trade-book-row{display:flex; align-items:center; justify-content:space-between; gap:6px; padding:6px 0; border-bottom:1px solid var(--line); cursor:pointer; font-size:12px;}
   .trade-book-row:hover{color:var(--amber);}
@@ -243,7 +246,7 @@
 
 <div id="authgate">
   <div class="panel">
-    <div class="brand">Trading Desk</div>
+    <div class="brand">Market Terminal</div>
     <div class="authmode subtabs">
       <div class="subtab active" id="mode-signin" onclick="setAuthMode('signin')">Log In</div>
       <div class="subtab" id="mode-signup" onclick="setAuthMode('signup')">Sign Up</div>
@@ -271,7 +274,7 @@
 <div id="app" style="display:none">
 
 <div class="topbar">
-  <div class="brand">Trading Desk / <b>Market Regime · Exposure · Journal</b></div>
+  <div class="brand">Market Terminal / <b>Market Regime · Exposure · Journal</b></div>
   <div class="userbox">
     <span class="email" id="whoami"></span>
     <button class="ghost small" onclick="signOut()">Log Out</button>
@@ -340,12 +343,6 @@
           <h2>Up 20%+ / 30%+ in 5 Days</h2>
           <div id="chart-move-5d" style="height:220px;"></div>
           <div class="save-note">Count of NIFTY 500 stocks up 20%+/30%+ over the last 5 trading days — cumulative buckets, so a 35% mover counts in both.</div>
-        </div>
-
-        <div class="panel">
-          <h2>Up / Down 4%+ on Volume</h2>
-          <div id="chart-move-vol" style="height:220px;"></div>
-          <div class="save-note">Stocks moving ±4%+ in a day AND trading above 1.5× their trailing 20-day average volume — a volume-confirmed move, not just a price screener.</div>
           <div class="save-note" id="breadth-status"></div>
         </div>
 
@@ -369,9 +366,8 @@
       <div class="panel side-panel">
         <h2>Capital & Leverage Caps</h2>
         <label>Total Capital</label><input id="cap-total" type="number" step="any">
-        <label>Max Leverage — Equity</label><input id="cap-lev-equity" type="number" step="any">
-        <label>Max Leverage — F&O</label><input id="cap-lev-fno" type="number" step="any">
-        <label>Max Leverage — Commodity</label><input id="cap-lev-comm" type="number" step="any">
+        <label>Max Leverage — Equity Cash</label><input id="cap-lev-equity" type="number" step="any">
+        <label>Max Leverage — Equity Futures</label><input id="cap-lev-fno" type="number" step="any">
         <label>Max Leverage — Index Future</label><input id="cap-lev-indexfut" type="number" step="any">
         <label>Max Risk per Trade (%)</label><input id="cap-risk-trade" type="number" step="any">
 
@@ -379,10 +375,9 @@
           Capital Allocation by Segment — what share of Total Capital is earmarked for each segment.
           Position-sizing checks measure a trade's risk against its own segment's slice, not your whole capital.
         </div>
-        <label>Alloc — Equity (%)</label><input id="cap-alloc-equity" type="number" step="any">
-        <label>Alloc — F&O (%)</label><input id="cap-alloc-fno" type="number" step="any">
+        <label>Alloc — Equity Cash (%)</label><input id="cap-alloc-equity" type="number" step="any">
+        <label>Alloc — Equity Futures (%)</label><input id="cap-alloc-fno" type="number" step="any">
         <label>Alloc — Index Future (%)</label><input id="cap-alloc-indexfut" type="number" step="any">
-        <label>Alloc — Commodity (%)</label><input id="cap-alloc-comm" type="number" step="any">
 
         <div style="color:var(--text-dim); margin-top:16px; padding-top:12px; border-top:1px solid var(--line); font-size:12px;">
           Position Sizing Multipliers — applied on top of "Max Risk per Trade" based on market-cap class and regime.
@@ -475,11 +470,9 @@
     <div class="row3">
       <div><label>Segment</label>
         <select id="f-segment">
-          <option>Equity</option>
-          <option>F&O - Futures</option>
-          <option>F&O - Options</option>
+          <option>Equity Cash</option>
+          <option>Equity Futures</option>
           <option>Index Future</option>
-          <option>Commodity</option>
         </select>
       </div>
       <div><label>Direction</label>
@@ -528,7 +521,7 @@ let session = null;
 
 const DEFAULT_SETUP_OPTIONS = ['Cup & Handle','Rectangle Breakout','Multiyear Resistance','Head & Shoulders','Macro Thesis'];
 function emptyRules(){ return { sizing:'', stops:'', trailing:'', targets:'', leverage:'', setups:'', checklist:'', nonnegotiables:'', setupOptions: DEFAULT_SETUP_OPTIONS.slice(), setupMultipliers: {} }; }
-function emptyCapital(){ return { total:'', levEquity:'', levFno:'', levComm:'', levIndexfut:'', riskPerTrade:'', multLargeCap:1.0, multMidCap:0.8, multSmallCap:0.5, multRiskOn:1.2, multNeutral:1.0, multRiskOff:0.6, allocEquityPct:50, allocFnoPct:30, allocCommPct:20, allocIndexfutPct:20 }; }
+function emptyCapital(){ return { total:'', levEquity:'', levFno:'', levIndexfut:'', riskPerTrade:'', multLargeCap:1.0, multMidCap:0.8, multSmallCap:0.5, multRiskOn:1.2, multNeutral:1.0, multRiskOff:0.6, allocEquityPct:50, allocFnoPct:30, allocIndexfutPct:20 }; }
 
 let trades = [];
 let rules = emptyRules();
@@ -680,10 +673,10 @@ async function fetchCapital(){
   const { data } = await sb.from('capital').select('*').eq('user_id', session.user.id).maybeSingle();
   capital = data ? {
     total:data.total, levEquity:data.lev_equity, levFno:data.lev_fno,
-    levComm:data.lev_comm, levIndexfut:data.lev_indexfut, riskPerTrade:data.risk_per_trade,
+    levIndexfut:data.lev_indexfut, riskPerTrade:data.risk_per_trade,
     multLargeCap:data.mult_large_cap, multMidCap:data.mult_mid_cap, multSmallCap:data.mult_small_cap,
     multRiskOn:data.mult_risk_on, multNeutral:data.mult_neutral, multRiskOff:data.mult_risk_off,
-    allocEquityPct:data.alloc_equity_pct ?? 50, allocFnoPct:data.alloc_fno_pct ?? 30, allocCommPct:data.alloc_comm_pct ?? 20,
+    allocEquityPct:data.alloc_equity_pct ?? 50, allocFnoPct:data.alloc_fno_pct ?? 30,
     allocIndexfutPct:data.alloc_indexfut_pct ?? 20
   } : emptyCapital();
 }
@@ -728,8 +721,7 @@ tickClock(); setInterval(tickClock, 30000);
 
 // ---------- journal ----------
 function segClass(seg){
-  if(seg==='Equity') return 'equity';
-  if(seg==='Commodity') return 'comm';
+  if(seg==='Equity Cash') return 'equity';
   if(seg==='Index Future') return 'indexfut';
   return 'fno';
 }
@@ -738,7 +730,7 @@ function segClass(seg){
 let editingTradeId = null;
 function clearTradeForm(){
   ['f-instrument','f-entry','f-qty','f-sl','f-target','f-trail','f-notes'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('f-segment').value = 'Equity';
+  document.getElementById('f-segment').value = 'Equity Cash';
   document.getElementById('f-direction').value = 'Long';
   document.getElementById('f-marketcap').value = 'Large Cap';
 }
@@ -916,7 +908,8 @@ function renderJournal(){
           <button class="ghost small" onclick="openTradeModal('${t.id}')">Edit</button>
           <button class="ghost small" onclick="closeTradePrompt('${t.id}')">Close</button>
         </td>
-      </tr>`).join('') + '</table>';
+      </tr>`).join('') + '</table>' +
+      '<div class="save-note">Size flags each trade\'s stop-loss risk % against your Playbook\'s sizing rules — a separate measure from Exposure\'s OVER CAP, which looks at total capital deployed per segment.</div>';
   }
 
   // closed trades
@@ -1073,7 +1066,6 @@ function loadCapitalForm(){
   document.getElementById('cap-total').value = capital.total;
   document.getElementById('cap-lev-equity').value = capital.levEquity;
   document.getElementById('cap-lev-fno').value = capital.levFno;
-  document.getElementById('cap-lev-comm').value = capital.levComm;
   document.getElementById('cap-lev-indexfut').value = capital.levIndexfut;
   document.getElementById('cap-risk-trade').value = capital.riskPerTrade;
   document.getElementById('cap-mult-large').value = capital.multLargeCap;
@@ -1084,7 +1076,6 @@ function loadCapitalForm(){
   document.getElementById('cap-mult-riskoff').value = capital.multRiskOff;
   document.getElementById('cap-alloc-equity').value = capital.allocEquityPct;
   document.getElementById('cap-alloc-fno').value = capital.allocFnoPct;
-  document.getElementById('cap-alloc-comm').value = capital.allocCommPct;
   document.getElementById('cap-alloc-indexfut').value = capital.allocIndexfutPct;
 }
 async function saveCapital(){
@@ -1092,7 +1083,6 @@ async function saveCapital(){
     total: parseFloat(document.getElementById('cap-total').value)||0,
     levEquity: parseFloat(document.getElementById('cap-lev-equity').value)||0,
     levFno: parseFloat(document.getElementById('cap-lev-fno').value)||0,
-    levComm: parseFloat(document.getElementById('cap-lev-comm').value)||0,
     levIndexfut: parseFloat(document.getElementById('cap-lev-indexfut').value)||0,
     riskPerTrade: parseFloat(document.getElementById('cap-risk-trade').value)||0,
     multLargeCap: parseFloat(document.getElementById('cap-mult-large').value)||1.0,
@@ -1103,16 +1093,15 @@ async function saveCapital(){
     multRiskOff: parseFloat(document.getElementById('cap-mult-riskoff').value)||1.0,
     allocEquityPct: parseFloat(document.getElementById('cap-alloc-equity').value)||0,
     allocFnoPct: parseFloat(document.getElementById('cap-alloc-fno').value)||0,
-    allocCommPct: parseFloat(document.getElementById('cap-alloc-comm').value)||0,
     allocIndexfutPct: parseFloat(document.getElementById('cap-alloc-indexfut').value)||0
   };
   const { error } = await sb.from('capital').upsert({
     user_id: session.user.id,
     total: capital.total, lev_equity: capital.levEquity, lev_fno: capital.levFno,
-    lev_comm: capital.levComm, lev_indexfut: capital.levIndexfut, risk_per_trade: capital.riskPerTrade,
+    lev_indexfut: capital.levIndexfut, risk_per_trade: capital.riskPerTrade,
     mult_large_cap: capital.multLargeCap, mult_mid_cap: capital.multMidCap, mult_small_cap: capital.multSmallCap,
     mult_risk_on: capital.multRiskOn, mult_neutral: capital.multNeutral, mult_risk_off: capital.multRiskOff,
-    alloc_equity_pct: capital.allocEquityPct, alloc_fno_pct: capital.allocFnoPct, alloc_comm_pct: capital.allocCommPct,
+    alloc_equity_pct: capital.allocEquityPct, alloc_fno_pct: capital.allocFnoPct,
     alloc_indexfut_pct: capital.allocIndexfutPct
   }, { onConflict: 'user_id' });
   if(error){ alert('Could not save capital settings: '+error.message); return; }
@@ -1124,11 +1113,9 @@ async function saveCapital(){
 function computeExposureBySegment(){
   const open = trades.filter(t=>t.status==='open');
   const segs = {
-    'Equity': {cap: capital.levEquity, exp:0},
-    'F&O - Futures': {cap: capital.levFno, exp:0},
-    'F&O - Options': {cap: capital.levFno, exp:0},
-    'Index Future': {cap: capital.levIndexfut, exp:0},
-    'Commodity': {cap: capital.levComm, exp:0}
+    'Equity Cash': {cap: capital.levEquity, exp:0},
+    'Equity Futures': {cap: capital.levFno, exp:0},
+    'Index Future': {cap: capital.levIndexfut, exp:0}
   };
   open.forEach(t=>{
     const notional = (t.entry||0) * (t.qty||0);
@@ -1143,10 +1130,9 @@ function computeExposureBySegment(){
 // capital the same way Equity is. Segment not yet allocated (e.g. unset) falls back to 100%
 // of total, matching the old behavior, so this never silently zeroes out an unconfigured segment.
 function segmentAllocPct(segment){
-  if(segment==='Equity') return capital.allocEquityPct;
-  if(segment==='F&O - Futures' || segment==='F&O - Options') return capital.allocFnoPct;
+  if(segment==='Equity Cash') return capital.allocEquityPct;
+  if(segment==='Equity Futures') return capital.allocFnoPct;
   if(segment==='Index Future') return capital.allocIndexfutPct;
-  if(segment==='Commodity') return capital.allocCommPct;
   return 100;
 }
 function segmentCapital(segment){
@@ -1172,7 +1158,8 @@ function renderExposure(){
     </tr>`;
   });
   document.getElementById('exposure-table').innerHTML =
-    `<table><tr><th>Segment</th><th>Exposure (₹)</th><th>Allocated (₹)</th><th>Leverage Used</th><th>Cap</th><th>Status</th></tr>${rows}</table>`;
+    `<table><tr><th>Segment</th><th>Exposure (₹)</th><th>Allocated (₹)</th><th>Leverage Used</th><th>Cap</th><th>Status</th></tr>${rows}</table>` +
+    `<div class="save-note">OVER CAP measures total notional stock value held vs. this segment's leverage cap — independent of the Journal's per-trade sizing flag, which measures stop-loss risk %. A segment can be OVER CAP (too much capital deployed) while every individual trade is still "undersized" (a small, safe stop) — that's not a contradiction, just two different risk dimensions.</div>`;
 }
 
 // ---------- market regime ----------
@@ -1473,13 +1460,6 @@ function renderBreadthCharts(){
   });
   sMove5d.up20.setData(asc.filter(r=>r.countUp20_5d!=null).map(r=>({time:r.snapshotDate, value:r.countUp20_5d})));
   sMove5d.up30.setData(asc.filter(r=>r.countUp30_5d!=null).map(r=>({time:r.snapshotDate, value:r.countUp30_5d})));
-
-  const { series: sMoveVol } = getOrCreateChart('chart-move-vol', {
-    up: { type:'Histogram', options:{ color: chartColor('--green'), priceFormat:{type:'volume'} } },
-    down: { type:'Histogram', options:{ color: chartColor('--red'), priceFormat:{type:'volume'} } }
-  });
-  sMoveVol.up.setData(asc.filter(r=>r.countUp4pctVol!=null).map(r=>({time:r.snapshotDate, value:r.countUp4pctVol})));
-  sMoveVol.down.setData(asc.filter(r=>r.countDown4pctVol!=null).map(r=>({time:r.snapshotDate, value:-r.countDown4pctVol})));
 }
 
 // ---------- sector strength ----------
@@ -1490,10 +1470,38 @@ function renderBreadthCharts(){
 // stock too new to have a seeded EMA200) is silently skipped from that sector's count —
 // same "don't fabricate data for untracked symbols" rule used elsewhere in this file.
 let sectorsData = null;
+let fnoUniverse = null;
 function sectorBarColor(pct){
   if(pct >= 60) return chartColor('--green');
   if(pct >= 35) return chartColor('--amber');
   return chartColor('--red');
+}
+// IBD-style RS Rating: each symbol's trailing ~3-month (66 trading day) return, percentile-
+// ranked (1-99) against every other symbol with a full window — inherently relative to the
+// tracked universe, no separate benchmark subtraction needed. Recomputed fresh on every
+// render (cheap — under 500 symbols) rather than cached, since emaStateCache only changes
+// once per trading day anyway.
+function computeRSRatings(){
+  if(!emaStateCache) return {};
+  const returns = {};
+  Object.keys(emaStateCache).forEach(sym=>{
+    const st = emaStateCache[sym];
+    const rc = st.rsCloses;
+    if(!Array.isArray(rc) || rc.length < 66 || !rc[0] || st.lastClose==null) return;
+    returns[sym] = (st.lastClose - rc[0]) / rc[0] * 100;
+  });
+  const syms = Object.keys(returns).sort((a,b)=>returns[a]-returns[b]);
+  const n = syms.length;
+  const ratings = {};
+  syms.forEach((sym,i)=>{ ratings[sym] = n>1 ? Math.round((i/(n-1))*98+1) : 50; });
+  return ratings;
+}
+function rsRatingClass(r){
+  return r>=70 ? 'pos' : (r<=30 ? 'neg' : '');
+}
+function toggleSectorDetail(i){
+  const el = document.getElementById('sector-detail-'+i);
+  if(el) el.classList.toggle('open');
 }
 function renderSectorStrength(){
   const container = document.getElementById('sector-strength-panel');
@@ -1506,6 +1514,7 @@ function renderSectorStrength(){
     container.innerHTML = '<div class="empty">Sector data needs today\'s breadth update first.</div>';
     return;
   }
+  const rsRatings = computeRSRatings();
   const rows = Object.keys(sectorsData).map(sector=>{
     let above = 0, counted = 0;
     sectorsData[sector].forEach(sym=>{
@@ -1517,15 +1526,31 @@ function renderSectorStrength(){
     return counted ? { sector, pct: above/counted*100 } : null;
   }).filter(Boolean).sort((a,b)=>b.pct-a.pct);
 
-  container.innerHTML = rows.length===0 ? '<div class="empty">No sector data available yet.</div>' : rows.map(r=>`
-    <div class="sector-bar-row">
+  container.innerHTML = rows.length===0 ? '<div class="empty">No sector data available yet.</div>' : rows.map((r,i)=>{
+    const top10 = sectorsData[r.sector]
+      .filter(sym=>rsRatings[sym]!=null)
+      .sort((a,b)=>rsRatings[b]-rsRatings[a])
+      .slice(0,10);
+    const detailRows = top10.length ? top10.map(sym=>`
+      <div class="sector-detail-row">
+        <span class="sector-detail-sym">${sym}${fnoUniverse && fnoUniverse.has(sym) ? ' <span class="fo-badge">F&O</span>' : ''}</span>
+        <span class="sector-detail-rs ${rsRatingClass(rsRatings[sym])}">${rsRatings[sym]}</span>
+      </div>
+    `).join('') : '<div class="empty" style="padding:6px 0;">RS Rating needs ~3 more months of tracked history to warm up.</div>';
+    return `
+    <div class="sector-bar-row" onclick="toggleSectorDetail(${i})">
       <div class="sector-bar-label">${r.sector}</div>
       <div class="sector-bar-track"><div class="sector-bar-fill" style="width:${r.pct.toFixed(0)}%; background:${sectorBarColor(r.pct)}"></div></div>
       <div class="sector-bar-pct">${r.pct.toFixed(0)}%</div>
     </div>
-  `).join('');
+    <div class="sector-detail" id="sector-detail-${i}">
+      <div class="sector-detail-header">Top ${top10.length || 0} by RS Rating (1–99, ~3-month return percentile vs. tracked universe)</div>
+      ${detailRows}
+    </div>`;
+  }).join('');
 }
 fetch('/sectors.json').then(r=>r.json()).then(d=>{ sectorsData = d; renderSectorStrength(); }).catch(()=>{ /* panel just shows "Loading…" indefinitely — non-critical, static asset */ });
+fetch('/fo_universe.json').then(r=>r.json()).then(d=>{ fnoUniverse = new Set(d); renderSectorStrength(); }).catch(()=>{ /* F&O badges just never show — non-critical, static asset */ });
 
 // Triggered on opening the Market Regime tab — no cron, since a cron-invoked function
 // would need a service_role key (or a long-lived stored credential) to write to Supabase,
@@ -1606,7 +1631,13 @@ async function updateBreadthIfNeeded(){
       if(recentVolumes.length > 20) recentVolumes.shift();
     }
 
-    state[sym] = { ema50:newEma50, ema200:newEma200, lastClose:price, lastDate:resp.date, recentCloses, recentVolumes };
+    // ~3-month rolling close window feeding the Sector Strength panel's RS Rating —
+    // same push/shift pattern as recentCloses, just a longer cap.
+    const rsCloses = Array.isArray(prior.rsCloses) ? prior.rsCloses.slice() : [];
+    rsCloses.push(price);
+    if(rsCloses.length > 66) rsCloses.shift();
+
+    state[sym] = { ema50:newEma50, ema200:newEma200, lastClose:price, lastDate:resp.date, recentCloses, recentVolumes, rsCloses };
     counted++;
     if(price > newEma50) above50++;
     if(price > newEma200) above200++;
