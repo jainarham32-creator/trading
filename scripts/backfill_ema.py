@@ -58,7 +58,10 @@ def fetch_day(d):
     req = urllib.request.Request(url, headers=HEADERS)
     try:
         resp = urllib.request.urlopen(req, timeout=15)
-        return resp.read().decode('utf-8', errors='replace')
+        # utf-8-sig strips a leading BOM if present (some older archive files have one,
+        # which broke header.index('SYMBOL') since '﻿SYMBOL' != 'SYMBOL') — behaves
+        # identically to plain utf-8 decode when no BOM is present.
+        return resp.read().decode('utf-8-sig', errors='replace')
     except urllib.error.HTTPError:
         return None
     except Exception as e:
@@ -103,7 +106,11 @@ def main():
         if d.weekday() < 5:  # Mon-Fri only; skip weekends without a network call
             text = fetch_day(d)
             if text:
-                closes, volumes = parse_closes_and_volumes(text, symbols)
+                try:
+                    closes, volumes = parse_closes_and_volumes(text, symbols)
+                except (ValueError, IndexError) as e:
+                    print(f'  skipping {d} — unparseable format ({e!r})')
+                    closes = None
                 if closes:
                     daily_data.append((d.isoformat(), closes, volumes))
                     if len(daily_data) % 25 == 0:

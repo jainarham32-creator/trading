@@ -12,7 +12,7 @@ create extension if not exists pgcrypto;
 create table public.trades (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null references auth.users(id) on delete cascade,
-  segment      text not null,               -- 'Equity' | 'F&O - Futures' | 'F&O - Options' | 'Commodity'
+  segment      text not null,               -- 'Equity Cash' | 'Equity Futures' | 'Index Future'
   direction    text not null,               -- 'Long' | 'Short'
   instrument   text not null,
   entry        numeric,
@@ -50,12 +50,16 @@ create table public.rules (
 );
 
 -- ---------- capital (one row per user) ----------
+-- Segments: Equity Cash, Equity Futures, Index Future — each with its own leverage cap
+-- and capital-allocation slice (lev_comm/alloc_comm_pct existed for a since-removed
+-- Commodity segment; the live project keeps those columns around, unused, rather than a
+-- destructive drop, but a fresh install has no need for them).
 create table public.capital (
   user_id        uuid primary key references auth.users(id) on delete cascade,
   total          numeric default 0,
   lev_equity     numeric default 0,
   lev_fno        numeric default 0,
-  lev_comm       numeric default 0,
+  lev_indexfut   numeric default 0,
   risk_per_trade numeric default 0,
   mult_large_cap numeric not null default 1.0,
   mult_mid_cap   numeric not null default 0.8,
@@ -63,11 +67,9 @@ create table public.capital (
   mult_risk_on   numeric not null default 1.2,
   mult_neutral   numeric not null default 1.0,
   mult_risk_off  numeric not null default 0.6,
-  alloc_equity_pct numeric not null default 50, -- % of total capital earmarked for Equity —
-  alloc_fno_pct    numeric not null default 30, -- position-sizing risk % is measured against
-  alloc_comm_pct   numeric not null default 20, -- this slice, not 100% of total, per segment
-  lev_indexfut     numeric default 0,           -- Index Future has its own leverage cap +
-  alloc_indexfut_pct numeric not null default 20, -- allocation slice, separate from stock F&O
+  alloc_equity_pct   numeric not null default 50, -- % of total capital earmarked for each
+  alloc_fno_pct      numeric not null default 30, -- segment — position-sizing risk % is
+  alloc_indexfut_pct numeric not null default 20, -- measured against this slice, not 100%
   updated_at     timestamptz not null default now()
 );
 
@@ -100,7 +102,7 @@ create index market_regime_user_date_idx on public.market_regime(user_id, snapsh
 -- ---------- ema_state (one row per user, a jsonb map — NOT one row per stock) ----------
 create table public.ema_state (
   user_id    uuid primary key references auth.users(id) on delete cascade,
-  state      jsonb not null default '{}'::jsonb,  -- { "RELIANCE": {"ema50":.., "ema200":.., "lastClose":.., "lastDate":"..", "recentCloses":[6 vals], "recentVolumes":[20 vals]}, ... }
+  state      jsonb not null default '{}'::jsonb,  -- { "RELIANCE": {"ema50":.., "ema200":.., "lastClose":.., "lastDate":"..", "recentCloses":[6 vals], "recentVolumes":[20 vals], "rsCloses":[66 vals]}, ... }
   updated_at timestamptz not null default now()
 );
 
@@ -113,7 +115,8 @@ create table public.market_breadth_history (
   count_up20_5d      integer,  -- stocks up 20%+ over the last 5 trading days
   count_up30_5d      integer,  -- stocks up 30%+ (inclusive of the up20 bucket, not mutually exclusive)
   count_up4pct_vol   integer,  -- stocks up 4%+ in a day AND on >1.5x their trailing 20-day avg volume
-  count_down4pct_vol integer,  -- same, down 4%+
+  count_down4pct_vol integer,  -- same, down 4%+ (both still computed/stored — the UI chart
+                                -- for these two was removed by request, data kept for later)
   updated_at         timestamptz not null default now(),
   primary key (user_id, snapshot_date)
 );
