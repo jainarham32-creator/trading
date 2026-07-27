@@ -1234,16 +1234,33 @@ function isWeekendToday(){
   const day = new Date().getDay();
   return day === 0 || day === 6;
 }
-// fiiDiiDate comes straight from NSE's own response for whatever session it last has data
-// for — comparing it to today catches weekday holidays too (the file is a day or more stale)
-// without needing a maintained holiday calendar.
-function ddMonYyyy(d){
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${String(d.getDate()).padStart(2,'0')}-${months[d.getMonth()]}-${d.getFullYear()}`;
-}
-function marketClosedReason(live){
+// Comparing NSE's fiiDiiDate/pcrDate against "today" to detect weekday holidays (tried
+// earlier) turned out to be a real bug, not a fix: FII/DII and bhavcopy-derived data are
+// published end-of-day, so on every normal trading morning the "latest" date available is
+// still yesterday's — that heuristic flagged every single weekday as a false "holiday"
+// until each day's own data appeared that evening. A hardcoded annual list (refresh once a
+// year, same manual-refresh convention as nifty500.json/sectors.json) is the only reliable
+// option — NSE holidays are published well in advance and don't change.
+const NSE_HOLIDAYS_2026 = new Set([
+  '2026-01-26', // Republic Day
+  '2026-03-03', // Holi
+  '2026-03-26', // Ram Navami
+  '2026-03-31', // Mahavir Jayanti
+  '2026-04-03', // Good Friday
+  '2026-04-14', // Dr. Baba Saheb Ambedkar Jayanti
+  '2026-05-01', // Maharashtra Day
+  '2026-05-28', // Bakri Id / Eid ul-Adha
+  '2026-06-26', // Muharram
+  '2026-09-14', // Ganesh Chaturthi
+  '2026-10-02', // Mahatma Gandhi Jayanti
+  '2026-10-20', // Dasara
+  '2026-11-10', // Diwali-Balipratipada
+  '2026-11-24', // Guru Nanak Jayanti
+  '2026-12-25', // Christmas
+]);
+function marketClosedReason(){
   if(isWeekendToday()) return 'weekend';
-  if(live.fiiDiiDate && live.fiiDiiDate !== ddMonYyyy(new Date())) return 'holiday';
+  if(NSE_HOLIDAYS_2026.has(new Date().toISOString().slice(0,10))) return 'holiday';
   return null;
 }
 
@@ -1261,7 +1278,7 @@ async function fetchRegimeLive(){
     liveRegime = { fetchError: e.message || String(e) };
   }
   if(!liveRegime.fetchError){
-    const closed = marketClosedReason(liveRegime);
+    const closed = marketClosedReason();
     if(closed) liveRegime.marketClosed = closed;
   }
   renderRegimeTab();
