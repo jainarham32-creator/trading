@@ -80,7 +80,7 @@ function parseIndexClose(text, indexName) {
 }
 
 module.exports = async (req, res) => {
-  const [vix, fiidii, highs, lows, pcr, nifty500] = await Promise.all([
+  const [vix, fiidii, pcr, nifty500] = await Promise.all([
     safeFetch('https://www.nseindia.com/api/allIndices', j => {
       const row = (j.data || []).find(x => x.indexSymbol === 'INDIA VIX' || x.index === 'INDIA VIX');
       return row ? parseFloat(row.last) : null;
@@ -96,12 +96,6 @@ module.exports = async (req, res) => {
         diiNet: dii ? parseFloat(dii.netValue) : null,
       };
     }),
-    safeFetch('https://www.nseindia.com/api/live-analysis-data-52weekhighstock', j =>
-      typeof j.high === 'number' ? j.high : null
-    ),
-    safeFetch('https://www.nseindia.com/api/live-analysis-data-52weeklowstock', j =>
-      typeof j.low === 'number' ? j.low : null
-    ),
     safeFetchCsv(
       d => `https://archives.nseindia.com/content/nsccl/fao_participant_oi_${ddmmyyyy(d)}.csv`,
       (text, d) => {
@@ -138,10 +132,6 @@ module.exports = async (req, res) => {
     diiNet: fiidii.value ? fiidii.value.diiNet : null,
     fiiDiiDate: fiidii.value ? fiidii.value.date : null,
     fiiDiiError: fiidii.error ?? null,
-    newHighs: highs.value ?? null,
-    newHighsError: highs.error ?? null,
-    newLows: lows.value ?? null,
-    newLowsError: lows.error ?? null,
     pcr: pcr.value ? pcr.value.pcr : null,
     pcrDate: pcr.value ? pcr.value.date : null,
     pcrError: pcr.error ?? null,
