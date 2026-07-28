@@ -24,9 +24,11 @@ function parseClosesAndVolumes(text) {
   const seriesI = header.indexOf('SERIES');
   const closeI = header.indexOf('CLOSE_PRICE');
   const volI = header.indexOf('TTL_TRD_QNTY');
+  const prevCloseI = header.indexOf('PREV_CLOSE');
   if (symI === -1 || seriesI === -1 || closeI === -1 || volI === -1) return null;
   const closes = {};
   const volumes = {};
+  const prevCloses = {};
   for (let i = 1; i < lines.length; i++) {
     const cells = lines[i].split(',');
     if (cells.length <= volI) continue;
@@ -37,8 +39,12 @@ function parseClosesAndVolumes(text) {
     const vol = parseFloat(cells[volI].trim());
     if (!isNaN(price)) closes[sym] = price;
     if (!isNaN(vol)) volumes[sym] = vol;
+    if (prevCloseI !== -1) {
+      const prev = parseFloat(cells[prevCloseI].trim());
+      if (!isNaN(prev)) prevCloses[sym] = prev;
+    }
   }
-  return { closes, volumes };
+  return { closes, volumes, prevCloses };
 }
 
 module.exports = async (req, res) => {
@@ -59,10 +65,10 @@ module.exports = async (req, res) => {
     }
     const parsed = parseClosesAndVolumes(await r.text());
     if (!parsed || Object.keys(parsed.closes).length === 0) {
-      res.status(200).json({ date: date.toISOString().slice(0, 10), closes: null, volumes: null, error: 'unexpected response shape' });
+      res.status(200).json({ date: date.toISOString().slice(0, 10), closes: null, volumes: null, prevCloses: null, error: 'unexpected response shape' });
       return;
     }
-    res.status(200).json({ date: date.toISOString().slice(0, 10), closes: parsed.closes, volumes: parsed.volumes, error: null });
+    res.status(200).json({ date: date.toISOString().slice(0, 10), closes: parsed.closes, volumes: parsed.volumes, prevCloses: parsed.prevCloses, error: null });
   } catch (e) {
     res.status(200).json({ date: date.toISOString().slice(0, 10), closes: null, volumes: null, error: e.message || String(e) });
   }
