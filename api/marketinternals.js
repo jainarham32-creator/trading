@@ -10,9 +10,16 @@ module.exports = async (req, res) => {
   try {
     const idx = (req.query && req.query.index) || 'NIFTY 50';
     const url = `https://www.nseindia.com/api/equity-stockIndices?index=${encodeURIComponent(idx)}`;
-    const r = await fetch(url, { headers: NSE_HEADERS });
+    // Some NSE endpoints 404/403 without a session cookie first established by hitting the
+    // homepage (unlike allIndices/fiidiiTradeReact/etc., which work with headers alone).
+    const homeResp = await fetch('https://www.nseindia.com/', { headers: NSE_HEADERS });
+    const rawCookies = typeof homeResp.headers.getSetCookie === 'function'
+      ? homeResp.headers.getSetCookie()
+      : (homeResp.headers.get('set-cookie') || '').split(/,(?=[^;]+?=)/);
+    const cookie = rawCookies.map(c => c.split(';')[0]).join('; ');
+    const r = await fetch(url, { headers: { ...NSE_HEADERS, Cookie: cookie, Referer: 'https://www.nseindia.com/' } });
     if (!r.ok) {
-      res.status(200).json({ error: `HTTP ${r.status}`, urlTried: url });
+      res.status(200).json({ error: `HTTP ${r.status}`, urlTried: url, homeStatus: homeResp.status, cookieLen: cookie.length });
       return;
     }
     const j = await r.json();
