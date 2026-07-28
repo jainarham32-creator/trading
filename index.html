@@ -225,6 +225,13 @@
   .sector-detail-sym{color:var(--text);}
   .sector-detail-rs{font-weight:bold; color:var(--text-dim);}
   .fo-badge{font-size:9px; color:var(--amber-dim); border:1px solid var(--line); border-radius:2px; padding:0 3px; margin-left:4px;}
+  .thrust-pie-wrap{display:flex; align-items:center; gap:18px;}
+  .thrust-pie{width:130px; height:130px; border-radius:50%; flex-shrink:0; position:relative;}
+  .thrust-pie-center{position:absolute; inset:16px; border-radius:50%; background:var(--panel); display:flex; align-items:center; justify-content:center; flex-direction:column;}
+  .thrust-pie-pct{font-size:22px; font-weight:bold; line-height:1;}
+  .thrust-pie-label{font-size:9px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;}
+  .thrust-legend{font-size:12px; color:var(--text-dim); display:flex; flex-direction:column; gap:6px;}
+  .thrust-legend b{color:var(--text);}
   .trade-book-list{max-height:520px; overflow-y:auto;}
   .trade-book-row{display:flex; align-items:center; justify-content:space-between; gap:6px; padding:6px 0; border-bottom:1px solid var(--line); cursor:pointer; font-size:12px;}
   .trade-book-row:hover{color:var(--amber);}
@@ -311,7 +318,7 @@
             <li>VIX: &lt;14 → 100 · 14–20 → 66 · 20–25 → 33 · &gt;25 → 0</li>
             <li>% of NIFTY 500 above 50 EMA: &lt;20 → 0 · 20–50 → 60 · 50–70 → 100 · &gt;70 → 40 (overbought)</li>
             <li>PCR: ≤0.8 → 0, ≥1.2 → 100, sliding scale between</li>
-            <li>New Highs vs Lows: highs&gt;lows → 100 · lows&gt;1.5×highs → 0 · else → 50</li>
+            <li>New Highs vs Lows (NIFTY 500, 52-week): highs&gt;lows → 100 · lows&gt;1.5×highs → 0 · else → 50</li>
             <li>NIFTY 500 vs. its 20 EMA: above → 100 · within 2% below → 50 · &gt;2% below → 0</li>
           </ul>
           <p>Score ≥ 65 → <span class="pos">Risk-On</span>. Score ≤ 35 → <span class="neg">Risk-Off</span>. Else Neutral.</p>
@@ -356,10 +363,18 @@
         </div>
       </div>
 
-      <div class="panel">
-        <h2>Sector Strength</h2>
-        <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">% of each sector's tracked NIFTY 500 constituents trading above their 200-day EMA.</div>
-        <div id="sector-strength-panel"></div>
+      <div>
+        <div class="panel">
+          <h2>Market Thrust</h2>
+          <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Whole-market advance/decline — % of today's traded stocks closing above their previous close.</div>
+          <div id="market-thrust-panel"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Sector Strength</h2>
+          <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">% of each sector's tracked NIFTY 500 constituents trading above their 200-day EMA.</div>
+          <div id="sector-strength-panel"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1299,6 +1314,7 @@ async function maybeAutoSaveRegime(){
   if(liveRegime.fetchError || liveRegime.marketClosed) return;
   if(liveRegime.vix===undefined) return; // liveRegime not fetched yet
   if(!breadthHistory || !breadthHistory[0]) return; // breadth pipeline not done yet
+  if(breadthHistory[0].countNewHighN500==null || breadthHistory[0].countNewLowN500==null) return; // 252-day window still warming up
   if(computeNifty500Ema20Today()==null) return; // no prior EMA20 to roll forward from yet
   const today = new Date().toISOString().slice(0,10);
   if(regimeAutoSavedForDate === today) return;
@@ -1310,7 +1326,7 @@ async function fetchLatestRegime(){
   const { data } = await sb.from('market_regime').select('*').order('snapshot_date', { ascending:false }).limit(1).maybeSingle();
   currentRegime = data ? {
     snapshotDate:data.snapshot_date, vix:numOrNaN(data.vix), fiiNet:numOrNaN(data.fii_net), diiNet:numOrNaN(data.dii_net),
-    newHighs:numOrNaN(data.new_highs), newLows:numOrNaN(data.new_lows), pcr:data.pcr, regimeLabel:data.regime_label, notes:data.notes||'',
+    pcr:data.pcr, regimeLabel:data.regime_label, notes:data.notes||'',
     nifty500Close:numOrNaN(data.nifty500_close), nifty500Ema20:numOrNaN(data.nifty500_ema20)
   } : null;
 }
@@ -1319,7 +1335,7 @@ async function fetchRegimeHistory(){
   const { data, error } = await sb.from('market_regime').select('*').order('snapshot_date', { ascending:false }).limit(30);
   regimeHistory = error ? [] : data.map(d=>({
     snapshotDate:d.snapshot_date, vix:numOrNaN(d.vix), fiiNet:numOrNaN(d.fii_net), diiNet:numOrNaN(d.dii_net),
-    newHighs:numOrNaN(d.new_highs), newLows:numOrNaN(d.new_lows), pcr:d.pcr, regimeLabel:d.regime_label, notes:d.notes||''
+    pcr:d.pcr, regimeLabel:d.regime_label, notes:d.notes||''
   }));
   renderRegimeHistory();
 }
@@ -1345,10 +1361,12 @@ function renderRegimeTab(){
     return;
   }
   const pctAbove50Ema = breadthHistory[0] ? breadthHistory[0].pctAbove50Ema : null;
+  const newHighsN500 = breadthHistory[0] ? breadthHistory[0].countNewHighN500 : null;
+  const newLowsN500 = breadthHistory[0] ? breadthHistory[0].countNewLowN500 : null;
   const nifty500Ema20Today = computeNifty500Ema20Today();
   const scored = computeRegimeScore({
     vix: numOrNaN(liveRegime.vix), pcr: liveRegime.pcr ?? null,
-    newHighs: numOrNaN(liveRegime.newHighs), newLows: numOrNaN(liveRegime.newLows),
+    newHighs: numOrNaN(newHighsN500), newLows: numOrNaN(newLowsN500),
     pctAbove50Ema, nifty500Close: liveRegime.nifty500Close ?? null, nifty500Ema20: nifty500Ema20Today
   });
   document.getElementById('regime-fetched-label').textContent = liveRegime.fetchedAt ? ('Fetched at ' + new Date(liveRegime.fetchedAt).toLocaleTimeString('en-IN')) : '';
@@ -1368,8 +1386,8 @@ function renderRegimeTab(){
     tile('India VIX', liveRegime.vix, liveRegime.vixError) +
     flowTile('FII Net (₹cr)', liveRegime.fiiNet, liveRegime.fiiDiiError) +
     flowTile('DII Net (₹cr)', liveRegime.diiNet, liveRegime.fiiDiiError) +
-    tile('New Highs (52w)', liveRegime.newHighs, liveRegime.newHighsError) +
-    tile('New Lows (52w)', liveRegime.newLows, liveRegime.newLowsError) +
+    tile('New Highs (NIFTY 500)', newHighsN500, null) +
+    tile('New Lows (NIFTY 500)', newLowsN500, null) +
     tile('PCR', liveRegime.pcr, liveRegime.pcrError) +
     tile('FII Options PCR', liveRegime.fiiOptionsPcr, liveRegime.fiiOptionsPcrError) +
     scoreTile;
@@ -1381,20 +1399,25 @@ function renderRegimeTab(){
 // (user_id, snapshot_date) so re-saving the same day updates rather than duplicates. Fails
 // quietly (a status note, not alert()) — an unprompted popup on an automatic action would
 // be jarring, matching the same "degrade silently" spirit as updateBreadthIfNeeded().
+// new_highs/new_lows are deliberately NOT part of this payload any more — that data now
+// lives in market_breadth_history (count_newhigh_n500/count_newlow_n500), computed by the
+// breadth pipeline, not this live NSE fetch. The market_regime columns are left as legacy/
+// unused (same "don't force a destructive migration" convention as capital's lev_comm).
 async function autoSaveRegimeSnapshot(){
   const pcr = liveRegime.pcr ?? null;
   const pctAbove50Ema = breadthHistory[0] ? breadthHistory[0].pctAbove50Ema : null;
+  const newHighsN500 = breadthHistory[0] ? breadthHistory[0].countNewHighN500 : null;
+  const newLowsN500 = breadthHistory[0] ? breadthHistory[0].countNewLowN500 : null;
   const nifty500Ema20Today = computeNifty500Ema20Today();
   const scored = computeRegimeScore({
     vix: numOrNaN(liveRegime.vix), pcr,
-    newHighs: numOrNaN(liveRegime.newHighs), newLows: numOrNaN(liveRegime.newLows),
+    newHighs: numOrNaN(newHighsN500), newLows: numOrNaN(newLowsN500),
     pctAbove50Ema, nifty500Close: liveRegime.nifty500Close ?? null, nifty500Ema20: nifty500Ema20Today
   });
   const row = {
     user_id: session.user.id,
     snapshot_date: new Date().toISOString().slice(0,10),
     vix: liveRegime.vix ?? null, fii_net: liveRegime.fiiNet ?? null, dii_net: liveRegime.diiNet ?? null,
-    new_highs: liveRegime.newHighs ?? null, new_lows: liveRegime.newLows ?? null,
     pcr, regime_label: scored.label,
     nifty500_close: liveRegime.nifty500Close ?? null, nifty500_ema20: nifty500Ema20Today
   };
@@ -1413,19 +1436,15 @@ function renderRegimeHistory(){
     el.innerHTML = '<div class="empty">No saved snapshots yet.</div>';
     return;
   }
-  el.innerHTML = '<table><tr><th>Date</th><th>VIX</th><th>FII Net</th><th>DII Net</th><th>New Highs</th><th>New Lows</th><th>PCR</th><th>Regime</th></tr>' +
+  el.innerHTML = '<table><tr><th>Date</th><th>VIX</th><th>FII Net</th><th>DII Net</th><th>PCR</th><th>Regime</th></tr>' +
     regimeHistory.map(r=>`<tr>
       <td>${r.snapshotDate}</td>
       <td>${isNaN(r.vix)?'-':r.vix}</td>
       <td class="${isNaN(r.fiiNet)?'':(r.fiiNet>=0?'pos':'neg')}">${isNaN(r.fiiNet)?'-':r.fiiNet}</td>
       <td class="${isNaN(r.diiNet)?'':(r.diiNet>=0?'pos':'neg')}">${isNaN(r.diiNet)?'-':r.diiNet}</td>
-      <td>${isNaN(r.newHighs)?'-':r.newHighs}</td>
-      <td>${isNaN(r.newLows)?'-':r.newLows}</td>
       <td>${r.pcr==null?'-':r.pcr.toFixed(2)}</td>
       <td class="${scoreClass(r.regimeLabel)}">${r.regimeLabel||'-'}</td>
     </tr>`).join('') + '</table>';
-
-  renderHighsLowsChart();
 }
 
 // ---------- charts ----------
@@ -1453,14 +1472,17 @@ function getOrCreateChart(containerId, seriesSpecs){
   return chartCache[containerId];
 }
 
+// Nifty-500-scoped, sourced from the breadth pipeline (ema_state's 252-day close window) —
+// replaced the old all-NSE-exchange count from NSE's own 52-week high/low screener, which
+// wasn't scoped to any specific index and had no way to give more than ~30 days of history.
 function renderHighsLowsChart(){
   const { series } = getOrCreateChart('chart-highs-lows', {
     highs: { type:'Histogram', options:{ color: chartColor('--green'), priceFormat:{type:'volume'} } },
     lows:  { type:'Histogram', options:{ color: chartColor('--red'), priceFormat:{type:'volume'} } }
   });
-  const asc = regimeHistory.slice().reverse();
-  series.highs.setData(asc.filter(r=>!isNaN(r.newHighs)).map(r=>({time:r.snapshotDate, value:r.newHighs})));
-  series.lows.setData(asc.filter(r=>!isNaN(r.newLows)).map(r=>({time:r.snapshotDate, value:-r.newLows})));
+  const asc = breadthHistory.slice().reverse();
+  series.highs.setData(asc.filter(r=>r.countNewHighN500!=null).map(r=>({time:r.snapshotDate, value:r.countNewHighN500})));
+  series.lows.setData(asc.filter(r=>r.countNewLowN500!=null).map(r=>({time:r.snapshotDate, value:-r.countNewLowN500})));
 }
 
 // ---------- EMA breadth ----------
@@ -1469,9 +1491,12 @@ async function fetchBreadthHistory(){
   breadthHistory = error ? [] : data.map(d=>({
     snapshotDate: d.snapshot_date, pctAbove50Ema: d.pct_above_50ema, pctAbove200Ema: d.pct_above_200ema,
     countUp20_5d: d.count_up20_5d, countUp30_5d: d.count_up30_5d,
-    countUp4pctVol: d.count_up4pct_vol, countDown4pctVol: d.count_down4pct_vol
+    countUp4pctVol: d.count_up4pct_vol, countDown4pctVol: d.count_down4pct_vol,
+    countNewHighN500: d.count_newhigh_n500, countNewLowN500: d.count_newlow_n500,
+    countAdvances: d.count_advances, countDeclines: d.count_declines
   }));
   renderBreadthCharts();
+  renderMarketThrust();
 }
 
 function renderBreadthCharts(){
@@ -1492,6 +1517,46 @@ function renderBreadthCharts(){
   });
   sMove5d.up20.setData(asc.filter(r=>r.countUp20_5d!=null).map(r=>({time:r.snapshotDate, value:r.countUp20_5d})));
   sMove5d.up30.setData(asc.filter(r=>r.countUp30_5d!=null).map(r=>({time:r.snapshotDate, value:r.countUp30_5d})));
+
+  renderHighsLowsChart();
+}
+
+// ---------- market thrust ----------
+// Whole-market advance/decline, computed once per day alongside the rest of the breadth
+// pipeline (see updateBreadthIfNeeded()) — a plain CSS conic-gradient pie, no charting
+// library needed for a single-day 2-slice view. Green when advancers are the majority,
+// red otherwise, matching the same convention as everywhere else in this app.
+function renderMarketThrust(){
+  const container = document.getElementById('market-thrust-panel');
+  if(!container) return; // not on the Market Regime view
+  const latest = breadthHistory[0];
+  if(!latest || latest.countAdvances==null || latest.countDeclines==null){
+    container.innerHTML = '<div class="empty">No market thrust data yet.</div>';
+    return;
+  }
+  const total = latest.countAdvances + latest.countDeclines;
+  if(total === 0){
+    container.innerHTML = '<div class="empty">No market thrust data yet.</div>';
+    return;
+  }
+  const advPct = latest.countAdvances / total * 100;
+  const green = chartColor('--green'), red = chartColor('--red');
+  const gradient = `conic-gradient(${green} 0% ${advPct}%, ${red} ${advPct}% 100%)`;
+  container.innerHTML = `
+    <div class="thrust-pie-wrap">
+      <div class="thrust-pie" style="background:${gradient}">
+        <div class="thrust-pie-center">
+          <div class="thrust-pie-pct ${advPct>=50?'pos':'neg'}">${advPct.toFixed(0)}%</div>
+          <div class="thrust-pie-label">Advancing</div>
+        </div>
+      </div>
+      <div class="thrust-legend">
+        <div><span class="pos">●</span> Advances: <b>${latest.countAdvances}</b></div>
+        <div><span class="neg">●</span> Declines: <b>${latest.countDeclines}</b></div>
+        <div style="margin-top:4px;">As of ${latest.snapshotDate}</div>
+      </div>
+    </div>
+  `;
 }
 
 // ---------- sector strength ----------
@@ -1635,6 +1700,7 @@ async function updateBreadthIfNeeded(){
   const k50 = 2/51, k200 = 2/201;
   let above50 = 0, above200 = 0, counted = 0;
   let up20_5d = 0, up30_5d = 0, up4pctVol = 0, down4pctVol = 0;
+  let newHighN500 = 0, newLowN500 = 0;
   Object.keys(resp.closes).forEach(sym=>{
     const prior = state[sym];
     if(!prior || prior.ema50==null || prior.ema200==null) return; // no seeded state for this symbol — skip, don't fabricate
@@ -1674,11 +1740,35 @@ async function updateBreadthIfNeeded(){
     rsCloses.push(price);
     if(rsCloses.length > 66) rsCloses.shift();
 
-    state[sym] = { ema50:newEma50, ema200:newEma200, lastClose:price, lastDate:resp.date, recentCloses, recentVolumes, rsCloses };
+    // New 52-week (252-trading-day) high/low, Nifty-500-scoped — checked against the
+    // window BEFORE today's push, same convention as backfill_ema.py's HIGH_LOW_WINDOW.
+    const close252 = Array.isArray(prior.close252) ? prior.close252.slice() : [];
+    if(close252.length === 252){
+      if(price > Math.max(...close252)) newHighN500++;
+      else if(price < Math.min(...close252)) newLowN500++;
+    }
+    close252.push(price);
+    if(close252.length > 252) close252.shift();
+
+    state[sym] = { ema50:newEma50, ema200:newEma200, lastClose:price, lastDate:resp.date, recentCloses, recentVolumes, rsCloses, close252 };
     counted++;
     if(price > newEma50) above50++;
     if(price > newEma200) above200++;
   });
+
+  // Market Thrust (advance/decline): whole-market, not limited to ema_state-tracked
+  // symbols — every EQ-series symbol in today's bhavcopy that also has a prevClose counts,
+  // matching the broader "whole exchange" framing this is meant to represent.
+  let advances = 0, declines = 0;
+  if(resp.prevCloses){
+    Object.keys(resp.closes).forEach(sym=>{
+      const prev = resp.prevCloses[sym];
+      if(prev==null || !prev) return;
+      const price = resp.closes[sym];
+      if(price > prev) advances++;
+      else if(price < prev) declines++;
+    });
+  }
 
   if(counted === 0){
     statusEl.textContent = `Breadth update skipped — no matching symbols in ${resp.date}'s data.`;
@@ -1701,7 +1791,9 @@ async function updateBreadthIfNeeded(){
     pct_above_50ema: +(above50/counted*100).toFixed(2),
     pct_above_200ema: +(above200/counted*100).toFixed(2),
     count_up20_5d: up20_5d, count_up30_5d: up30_5d,
-    count_up4pct_vol: up4pctVol, count_down4pct_vol: down4pctVol
+    count_up4pct_vol: up4pctVol, count_down4pct_vol: down4pctVol,
+    count_newhigh_n500: newHighN500, count_newlow_n500: newLowN500,
+    count_advances: advances, count_declines: declines
   }, { onConflict: 'user_id,snapshot_date' });
   if(historySaveErr){
     statusEl.textContent = `Breadth update FAILED to save (market_breadth_history): ${historySaveErr.message}. Last known: ${latest ? latest.snapshot_date : 'none'}.`;

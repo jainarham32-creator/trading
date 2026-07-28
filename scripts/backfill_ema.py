@@ -10,6 +10,8 @@ and computes, per NIFTY 500 symbol:
     trailing 20-day average, not just the price move alone)
   - a rolling 66-close (~3 month) window (-> the Sector Strength panel's RS Rating,
     a percentile rank of trailing return against the whole tracked universe)
+  - a rolling 252-close (~52 week) window (-> Nifty-500-scoped new-high/new-low counts,
+    replacing the old all-NSE-exchange count from NSE's own 52-week high/low screener)
 for the trading days beyond each metric's warm-up window (EMA's 200-day warmup is the
 long pole; by the time it's satisfied, the much shorter 5-day/20-day windows already are).
 
@@ -36,6 +38,7 @@ EMA200_PERIOD = 200
 RECENT_CLOSES_WINDOW = 6    # need close from 5 trading days ago: hist[-6] vs hist[-1]
 RECENT_VOLUMES_WINDOW = 20  # trailing 20-day average volume, excluding today
 RS_WINDOW = 66              # ~3-month rolling window for the Sector Strength RS Rating factor
+HIGH_LOW_WINDOW = 252       # ~52 trading weeks, for the Nifty-500-scoped new-high/new-low count
 VOLUME_MULTIPLE = 1.5       # today's volume must exceed 1.5x its own 20-day average to count
 TARGET_TRADING_DAYS = 1250  # ~5 years of real breadth output beyond the 200-day EMA warmup
 MAX_CALENDAR_DAYS_BACK = 1900  # archives confirmed retained at least 5 years back
@@ -133,6 +136,7 @@ def main():
     for date_str, closes, volumes in daily_data:
         above50 = above200 = counted = 0
         up20_5d = up30_5d = up4pct_vol = down4pct_vol = 0
+        newhigh_n500 = newlow_n500 = 0
 
         for sym, price in closes.items():
             hist = close_history.setdefault(sym, [])
@@ -183,6 +187,17 @@ def main():
                     elif pct1d <= -4:
                         down4pct_vol += 1
 
+            # New 52-week (252-trading-day) high/low, Nifty-500-scoped: compare today's price
+            # against the prior 252 closes (hist[:-1], since price was already appended above),
+            # not including today itself. Reuses the same unbounded close_history rather than
+            # a separate bounded array — only trimmed for the comparison, not stored trimmed.
+            prior_window = hist[:-1][-HIGH_LOW_WINDOW:]
+            if len(prior_window) == HIGH_LOW_WINDOW:
+                if price > max(prior_window):
+                    newhigh_n500 += 1
+                elif price < min(prior_window):
+                    newlow_n500 += 1
+
             # Only trim the volume window — it has no other use requiring an exact untouched
             # length. close_history must stay unbounded/untouched: EMA seeding above depends
             # on it reaching exactly EMA50_PERIOD/EMA200_PERIOD elements. The last 6 closes
@@ -202,6 +217,8 @@ def main():
                 'countUp30_5d': up30_5d,
                 'countUp4pctVol': up4pct_vol,
                 'countDown4pctVol': down4pct_vol,
+                'countNewHighN500': newhigh_n500,
+                'countNewLowN500': newlow_n500,
                 'symbolsCounted': counted,
             })
 
@@ -216,6 +233,7 @@ def main():
                 'recentCloses': [round(c, 4) for c in close_history.get(sym, [])[-RECENT_CLOSES_WINDOW:]],
                 'recentVolumes': volume_history.get(sym, [])[-RECENT_VOLUMES_WINDOW:],
                 'rsCloses': [round(c, 4) for c in close_history.get(sym, [])[-RS_WINDOW:]],
+                'close252': [round(c, 4) for c in close_history.get(sym, [])[-HIGH_LOW_WINDOW:]],
             }
 
     print(f'Computed EMA state for {len(ema_state)} symbols.')
