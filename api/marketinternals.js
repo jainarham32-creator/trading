@@ -8,9 +8,11 @@ const NSE_HEADERS = {
 
 module.exports = async (req, res) => {
   try {
-    const r = await fetch('https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%20TOTAL%20MARKET', { headers: NSE_HEADERS });
+    const idx = (req.query && req.query.index) || 'NIFTY 50';
+    const url = `https://www.nseindia.com/api/equity-stockIndices?index=${encodeURIComponent(idx)}`;
+    const r = await fetch(url, { headers: NSE_HEADERS });
     if (!r.ok) {
-      res.status(200).json({ error: `HTTP ${r.status}` });
+      res.status(200).json({ error: `HTTP ${r.status}`, urlTried: url });
       return;
     }
     const j = await r.json();
