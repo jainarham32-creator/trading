@@ -3,8 +3,9 @@
 -- If a project already has these tables with data, do NOT run this file — use the incremental
 -- migration files in this folder instead (migration_002_setup_regime_sizing.sql,
 -- migration_003_ema_breadth.sql, migration_004_segment_alloc_and_breadth_extras.sql,
--- migration_005_indexfuture_and_nifty500ema.sql), which are additive
--- (ALTER TABLE ADD COLUMN IF NOT EXISTS / CREATE TABLE IF NOT EXISTS) and safe to re-run.
+-- migration_005_indexfuture_and_nifty500ema.sql, migration_006_newhighs_advdecl.sql),
+-- which are additive (ALTER TABLE ADD COLUMN IF NOT EXISTS / CREATE TABLE IF NOT EXISTS)
+-- and safe to re-run.
 
 create extension if not exists pgcrypto;
 
@@ -78,6 +79,10 @@ create table public.capital (
 -- reverses an earlier deliberate "no auto-save, user must click Save" decision, by explicit
 -- user request (they didn't want a daily manual click). Contrast with market_breadth_history
 -- below, which auto-saves for a different reason: it never had a button to click at all.
+-- new_highs/new_lows (all-NSE-exchange 52-week counts) were part of an earlier design and
+-- are no longer written by the app — replaced by market_breadth_history's Nifty-500-scoped
+-- count_newhigh_n500/count_newlow_n500 (see nse-market-data skill) — so a fresh install
+-- has no need for them at all.
 create table public.market_regime (
   id            uuid primary key default gen_random_uuid(),
   user_id       uuid not null references auth.users(id) on delete cascade,
@@ -85,8 +90,6 @@ create table public.market_regime (
   vix           numeric,
   fii_net       numeric,
   dii_net       numeric,
-  new_highs     integer,
-  new_lows      integer,
   pcr           numeric,       -- auto-fetched via NSE participant-OI data, see nse-market-data skill
   regime_label  text,          -- 'Risk-On' | 'Neutral' | 'Risk-Off'
   notes         text default '', -- unused by the UI (removed) but kept so old rows aren't orphaned
@@ -102,7 +105,7 @@ create index market_regime_user_date_idx on public.market_regime(user_id, snapsh
 -- ---------- ema_state (one row per user, a jsonb map — NOT one row per stock) ----------
 create table public.ema_state (
   user_id    uuid primary key references auth.users(id) on delete cascade,
-  state      jsonb not null default '{}'::jsonb,  -- { "RELIANCE": {"ema50":.., "ema200":.., "lastClose":.., "lastDate":"..", "recentCloses":[6 vals], "recentVolumes":[20 vals], "rsCloses":[66 vals]}, ... }
+  state      jsonb not null default '{}'::jsonb,  -- { "RELIANCE": {"ema50":.., "ema200":.., "lastClose":.., "lastDate":"..", "recentCloses":[6 vals], "recentVolumes":[20 vals], "rsCloses":[66 vals], "close252":[252 vals]}, ... }
   updated_at timestamptz not null default now()
 );
 
@@ -117,6 +120,11 @@ create table public.market_breadth_history (
   count_up4pct_vol   integer,  -- stocks up 4%+ in a day AND on >1.5x their trailing 20-day avg volume
   count_down4pct_vol integer,  -- same, down 4%+ (both still computed/stored — the UI chart
                                 -- for these two was removed by request, data kept for later)
+  count_newhigh_n500 integer,  -- Nifty 500 stocks making a new 252-day (52-week) high today
+  count_newlow_n500  integer,  -- same, new 252-day low
+  count_advances     integer,  -- whole-market (all EQ-series bhavcopy symbols) close > prev close
+  count_declines     integer,  -- same, close < prev close — Market Thrust pie chart, today-only,
+                                -- not backfilled historically (see nse-market-data skill)
   updated_at         timestamptz not null default now(),
   primary key (user_id, snapshot_date)
 );
