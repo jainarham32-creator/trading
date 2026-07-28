@@ -17,6 +17,7 @@
     --amber-dim:#8a6a2e;
     --green:#5fb87a;
     --red:#d3574b;
+    --yellow:#d6c235;
     --text:#d8d6c9;
     --text-dim:#7c7b6f;
     --mono: "IBM Plex Mono","SF Mono",Consolas,monospace;
@@ -35,6 +36,7 @@
     --line:#dcd8c8;
     --text:#26241c;
     --text-dim:#6b6858;
+    --yellow:#a8930a;
     --input-bg:#faf9f4;
     --row-hover:#f0eee4;
     --pill-equity-bg:#dcf0e2;
@@ -167,6 +169,7 @@
   .pill.indexfut{background:var(--pill-indexfut-bg); color:var(--pill-indexfut-text);}
   .pos{color:var(--green);}
   .neg{color:var(--red);}
+  .neutral{color:var(--yellow);}
   .checklist label{
     display:flex; align-items:center; gap:8px;
     text-transform:none; font-size:12px; color:var(--text); margin:6px 0;
@@ -204,20 +207,21 @@
   .setup-row{display:grid; grid-template-columns:1fr 100px auto; gap:8px; align-items:center; margin-bottom:8px;}
   .setup-row input{margin-top:0;}
   .paged-layout{display:grid; grid-template-columns:240px 1fr; gap:16px;}
-  .paged-layout.regime-layout{grid-template-columns:240px 1fr 320px;}
+  .paged-layout.regime-layout{grid-template-columns:240px 1fr 460px;}
+  @media (max-width:1200px){.paged-layout.regime-layout{grid-template-columns:240px 1fr 340px;}}
   @media (max-width:900px){.paged-layout, .paged-layout.regime-layout{grid-template-columns:1fr;}}
   .paged-layout .main-col{max-width:960px;}
   .side-panel button{width:100%;}
-  .sector-bar-row{display:grid; grid-template-columns:96px 1fr 32px; align-items:center; gap:8px; margin-bottom:6px; cursor:pointer;}
+  .sector-bar-row{display:grid; grid-template-columns:130px 1fr 38px; align-items:center; gap:10px; margin-bottom:4px; cursor:pointer;}
   .sector-bar-row:hover .sector-bar-label{color:var(--amber);}
-  .sector-bar-label{font-size:11px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .sector-bar-track{background:var(--panel-2); border:1px solid var(--line); border-radius:2px; height:12px; overflow:hidden;}
+  .sector-bar-label{font-size:12px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .sector-bar-track{background:var(--panel-2); border:1px solid var(--line); border-radius:2px; height:14px; overflow:hidden;}
   .sector-bar-fill{height:100%;}
-  .sector-bar-pct{font-size:11px; color:var(--text-dim); text-align:right;}
-  .sector-detail{display:none; padding:4px 0 10px 0; margin-bottom:8px; border-bottom:1px solid var(--line);}
+  .sector-bar-pct{font-size:12px; color:var(--text-dim); text-align:right;}
+  .sector-detail{display:none; padding:2px 0 8px 0; margin-bottom:4px; border-bottom:1px solid var(--line);}
   .sector-detail.open{display:block;}
   .sector-detail-header{font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;}
-  .sector-detail-row{display:flex; justify-content:space-between; align-items:center; font-size:11px; padding:3px 0;}
+  .sector-detail-row{display:flex; justify-content:space-between; align-items:center; font-size:11px; padding:2px 0;}
   .sector-detail-sym{color:var(--text);}
   .sector-detail-rs{font-weight:bold; color:var(--text-dim);}
   .fo-badge{font-size:9px; color:var(--amber-dim); border:1px solid var(--line); border-radius:2px; padding:0 3px; margin-left:4px;}
@@ -1321,7 +1325,10 @@ async function fetchRegimeHistory(){
 }
 
 function scoreClass(label){
-  return label==='Risk-On' ? 'pos' : (label==='Risk-Off' ? 'neg' : '');
+  if(label==='Risk-On') return 'pos';
+  if(label==='Risk-Off') return 'neg';
+  if(label==='Neutral') return 'neutral';
+  return '';
 }
 
 function renderRegimeTab(){
@@ -1346,13 +1353,21 @@ function renderRegimeTab(){
   });
   document.getElementById('regime-fetched-label').textContent = liveRegime.fetchedAt ? ('Fetched at ' + new Date(liveRegime.fetchedAt).toLocaleTimeString('en-IN')) : '';
   const tile = (label, val, err) => `<div class="stat"><div class="num">${val==null?'-':(typeof val==='number'&&!Number.isInteger(val)?val.toFixed(2):val)}</div><div class="lbl">${label}${err?' <span class=\"flag\">'+err+'</span>':''}</div></div>`;
+  // FII/DII net flows: positive = net buying, negative = net selling — colored and labeled
+  // so the direction reads at a glance instead of just a signed number.
+  const flowTile = (label, val, err) => {
+    const known = val!=null && !isNaN(val);
+    const cls = known ? (val>=0 ? 'pos' : 'neg') : '';
+    const dir = known ? (val>=0 ? ' (Buy)' : ' (Sell)') : '';
+    return `<div class="stat"><div class="num ${cls}">${known?val.toFixed(2):'-'}</div><div class="lbl">${label}${dir}${err?' <span class=\"flag\">'+err+'</span>':''}</div></div>`;
+  };
   const scoreTile = scored.score==null
     ? `<div class="stat"><div class="num">Scoring…</div><div class="lbl">Regime</div></div>`
     : `<div class="stat"><div class="num ${scoreClass(scored.label)}">${scored.label}</div><div class="lbl">Regime (score ${scored.score})</div></div>`;
   document.getElementById('regime-statgrid').innerHTML =
     tile('India VIX', liveRegime.vix, liveRegime.vixError) +
-    tile('FII Net (₹cr)', liveRegime.fiiNet, liveRegime.fiiDiiError) +
-    tile('DII Net (₹cr)', liveRegime.diiNet, liveRegime.fiiDiiError) +
+    flowTile('FII Net (₹cr)', liveRegime.fiiNet, liveRegime.fiiDiiError) +
+    flowTile('DII Net (₹cr)', liveRegime.diiNet, liveRegime.fiiDiiError) +
     tile('New Highs (52w)', liveRegime.newHighs, liveRegime.newHighsError) +
     tile('New Lows (52w)', liveRegime.newLows, liveRegime.newLowsError) +
     tile('PCR', liveRegime.pcr, liveRegime.pcrError) +
@@ -1402,8 +1417,8 @@ function renderRegimeHistory(){
     regimeHistory.map(r=>`<tr>
       <td>${r.snapshotDate}</td>
       <td>${isNaN(r.vix)?'-':r.vix}</td>
-      <td>${isNaN(r.fiiNet)?'-':r.fiiNet}</td>
-      <td>${isNaN(r.diiNet)?'-':r.diiNet}</td>
+      <td class="${isNaN(r.fiiNet)?'':(r.fiiNet>=0?'pos':'neg')}">${isNaN(r.fiiNet)?'-':r.fiiNet}</td>
+      <td class="${isNaN(r.diiNet)?'':(r.diiNet>=0?'pos':'neg')}">${isNaN(r.diiNet)?'-':r.diiNet}</td>
       <td>${isNaN(r.newHighs)?'-':r.newHighs}</td>
       <td>${isNaN(r.newLows)?'-':r.newLows}</td>
       <td>${r.pcr==null?'-':r.pcr.toFixed(2)}</td>
@@ -1543,7 +1558,12 @@ function renderSectorStrength(){
     return counted ? { sector, pct: above/counted*100 } : null;
   }).filter(Boolean).sort((a,b)=>b.pct-a.pct);
 
-  container.innerHTML = rows.length===0 ? '<div class="empty">No sector data available yet.</div>' : rows.map((r,i)=>{
+  // Surfaces the underlying data's actual date so staleness is immediately visible rather
+  // than something you have to guess at or dig into Supabase to check.
+  const anyState = Object.values(emaStateCache).find(s=>s && s.lastDate);
+  const freshnessNote = anyState ? `<div class="save-note" style="margin-bottom:10px;">Sector data as of ${anyState.lastDate}</div>` : '';
+
+  container.innerHTML = freshnessNote + (rows.length===0 ? '<div class="empty">No sector data available yet.</div>' : rows.map((r,i)=>{
     const top10 = sectorsData[r.sector]
       .filter(sym=>rsRatings[sym]!=null)
       .sort((a,b)=>rsRatings[b]-rsRatings[a])
@@ -1564,7 +1584,7 @@ function renderSectorStrength(){
       <div class="sector-detail-header">Top ${top10.length || 0} by RS Rating (1–99, ~3-month return percentile vs. tracked universe)</div>
       ${detailRows}
     </div>`;
-  }).join('');
+  }).join(''));
 }
 fetch('/sectors.json').then(r=>r.json()).then(d=>{ sectorsData = d; renderSectorStrength(); }).catch(()=>{ /* panel just shows "Loading…" indefinitely — non-critical, static asset */ });
 fetch('/fo_universe.json').then(r=>r.json()).then(d=>{ fnoUniverse = new Set(d); renderSectorStrength(); }).catch(()=>{ /* F&O badges just never show — non-critical, static asset */ });
@@ -1666,14 +1686,28 @@ async function updateBreadthIfNeeded(){
     return;
   }
 
-  await sb.from('ema_state').upsert({ user_id: session.user.id, state }, { onConflict: 'user_id' });
-  await sb.from('market_breadth_history').upsert({
+  // Both upserts are checked for errors — a silent failure here (RLS hiccup, network
+  // blip) previously left the UI reporting "Breadth updated" while nothing actually
+  // persisted, which would show as data being permanently "stuck" on the last real save
+  // every time the page reloads (a real bug this surfaced, not just theoretical).
+  const { error: emaSaveErr } = await sb.from('ema_state').upsert({ user_id: session.user.id, state }, { onConflict: 'user_id' });
+  if(emaSaveErr){
+    statusEl.textContent = `Breadth update FAILED to save (ema_state): ${emaSaveErr.message}. Last known: ${latest ? latest.snapshot_date : 'none'}.`;
+    await afterBreadthUpdate();
+    return;
+  }
+  const { error: historySaveErr } = await sb.from('market_breadth_history').upsert({
     user_id: session.user.id, snapshot_date: resp.date,
     pct_above_50ema: +(above50/counted*100).toFixed(2),
     pct_above_200ema: +(above200/counted*100).toFixed(2),
     count_up20_5d: up20_5d, count_up30_5d: up30_5d,
     count_up4pct_vol: up4pctVol, count_down4pct_vol: down4pctVol
   }, { onConflict: 'user_id,snapshot_date' });
+  if(historySaveErr){
+    statusEl.textContent = `Breadth update FAILED to save (market_breadth_history): ${historySaveErr.message}. Last known: ${latest ? latest.snapshot_date : 'none'}.`;
+    await afterBreadthUpdate();
+    return;
+  }
   emaStateCache = state;
   statusEl.textContent = `Breadth updated for ${resp.date} (${counted} symbols).`;
   await afterBreadthUpdate();
