@@ -337,6 +337,7 @@
 
         <div class="panel">
           <h2>New Highs / New Lows</h2>
+          <div class="save-note" style="margin-bottom:8px;">Universe: NIFTY 500 constituents · New = today's close breaks the prior 252-trading-day (~52-week) high/low.</div>
           <div id="chart-highs-lows" style="height:220px;"></div>
         </div>
 
@@ -368,6 +369,7 @@
           <h2>Market Thrust</h2>
           <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Whole-market advance/decline — % of today's traded stocks closing above their previous close.</div>
           <div id="market-thrust-panel"></div>
+          <div id="market-thrust-history" style="margin-top:12px;"></div>
         </div>
 
         <div class="panel">
@@ -1497,6 +1499,7 @@ async function fetchBreadthHistory(){
   }));
   renderBreadthCharts();
   renderMarketThrust();
+  renderAdvDeclHistory();
 }
 
 function renderBreadthCharts(){
@@ -1556,6 +1559,35 @@ function renderMarketThrust(){
         <div style="margin-top:4px;">As of ${latest.snapshotDate}</div>
       </div>
     </div>
+  `;
+}
+
+// Last 5 trading days with real advance/decline data (older backfilled days may not have
+// it — Market Thrust is a today-only stat by design, see nse-market-data skill — so this
+// filters to rows that actually have both counts rather than assuming the top 5 rows do).
+function renderAdvDeclHistory(){
+  const container = document.getElementById('market-thrust-history');
+  if(!container) return;
+  const rows = breadthHistory.filter(r=>r.countAdvances!=null && r.countDeclines!=null).slice(0,5);
+  if(rows.length===0){
+    container.innerHTML = '';
+    return;
+  }
+  container.innerHTML = `
+    <div class="save-note" style="margin-bottom:6px;">Last ${rows.length} trading day${rows.length>1?'s':''}</div>
+    <table style="font-size:11px;">
+      <tr><th>Date</th><th>Adv</th><th>Dec</th><th>Adv %</th></tr>
+      ${rows.map(r=>{
+        const total = r.countAdvances + r.countDeclines;
+        const pct = total ? (r.countAdvances/total*100) : 0;
+        return `<tr>
+          <td>${r.snapshotDate}</td>
+          <td class="pos">${r.countAdvances}</td>
+          <td class="neg">${r.countDeclines}</td>
+          <td class="${pct>=50?'pos':'neg'}">${pct.toFixed(0)}%</td>
+        </tr>`;
+      }).join('')}
+    </table>
   `;
 }
 
