@@ -215,9 +215,16 @@
   .paged-layout{display:grid; grid-template-columns:240px 1fr; gap:16px;}
   .paged-layout.regime-layout{grid-template-columns:240px 1fr 460px;}
   .paged-layout.journal-layout{grid-template-columns:240px 1fr 340px;}
+  .paged-layout.stocks-layout{grid-template-columns:320px 1fr;}
   @media (max-width:1200px){.paged-layout.regime-layout{grid-template-columns:240px 1fr 340px;}}
   @media (max-width:1100px){.paged-layout.journal-layout{grid-template-columns:240px 1fr 280px;}}
-  @media (max-width:900px){.paged-layout, .paged-layout.regime-layout, .paged-layout.journal-layout{grid-template-columns:1fr;}}
+  @media (max-width:900px){.paged-layout, .paged-layout.regime-layout, .paged-layout.journal-layout, .paged-layout.stocks-layout{grid-template-columns:1fr;}}
+  .stock-table-list{max-height:640px; overflow-y:auto;}
+  .news-item{padding:6px 0; border-bottom:1px solid var(--line); font-size:12px;}
+  .news-item a{color:var(--text); text-decoration:none;}
+  .news-item a:hover{color:var(--amber);}
+  .news-item .src{color:var(--text-dim); font-size:10px; margin-top:2px;}
+  .trend-row{display:flex; justify-content:space-between; font-size:12px; padding:3px 0;}
   .paged-layout .main-col{max-width:960px;}
   .side-panel button{width:100%;}
   .sector-bar-row{display:grid; grid-template-columns:130px 1fr 38px; align-items:center; gap:10px; margin-bottom:4px; cursor:pointer;}
@@ -302,7 +309,7 @@
 <div id="app" style="display:none">
 
 <div class="topbar">
-  <div class="brand">Market Terminal / <b>Market Regime · Journal</b></div>
+  <div class="brand">Market Terminal / <b>Market Regime · Journal · Stocks</b></div>
   <div class="userbox">
     <span class="email" id="whoami"></span>
     <button class="ghost small" onclick="signOut()">Log Out</button>
@@ -314,6 +321,7 @@
 <div class="tabs">
   <div class="tab active" data-view="regime">Market Regime</div>
   <div class="tab" data-view="journal">Journal</div>
+  <div class="tab" data-view="stocks">Stocks</div>
 </div>
 
 <main>
@@ -443,6 +451,39 @@
           <h2>Current Exposure</h2>
           <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Notional stock value held per segment, vs. its leverage cap (set in Playbook & Settings).</div>
           <div id="exposure-table"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STOCKS -->
+  <div class="view" id="view-stocks">
+    <div class="paged-layout stocks-layout">
+      <div>
+        <div class="panel">
+          <h2>Fear &amp; Greed</h2>
+          <div id="fear-greed-panel"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Markets News</h2>
+          <div id="news-panel"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Trending in India</h2>
+          <div style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">General search trends, not finance-specific — see Fear &amp; Greed above for market sentiment.</div>
+          <div id="trending-panel"></div>
+        </div>
+      </div>
+
+      <div class="main-col">
+        <div class="panel">
+          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:12px;">
+            <h2 style="margin:0; border:none; padding:0;">NIFTY 500 Stocks</h2>
+            <span class="save-note" id="stocks-freshness"></span>
+          </div>
+          <div id="stock-table"></div>
         </div>
       </div>
     </div>
@@ -770,6 +811,10 @@ async function loadAllData(){
 // ---------- tabs ----------
 function onTabShown(view){
   if(view==='regime'){ fetchRegimeLive(); fetchRegimeHistory(); updateBreadthIfNeeded(); }
+  // Stocks tab is self-sufficient regardless of whether Market Regime was visited first —
+  // it triggers the same live-fetch/breadth pipeline itself (Fear/Greed needs liveRegime,
+  // the stock table needs emaStateCache), plus its own news fetch.
+  if(view==='stocks'){ fetchRegimeLive(); updateBreadthIfNeeded(); fetchNews(); }
 }
 document.querySelectorAll('.tab').forEach(t=>{
   t.addEventListener('click', ()=>{
@@ -1345,6 +1390,23 @@ function computeNifty500Ema20Today(){
   return liveRegime.nifty500Close*NIFTY500_EMA20_K + currentRegime.nifty500Ema20*(1-NIFTY500_EMA20_K);
 }
 
+// Assembles computeRegimeScore()'s input object from the three independent sources it draws
+// on (liveRegime, breadthHistory, currentRegime) — shared by renderRegimeTab(),
+// autoSaveRegimeSnapshot(), and the Stocks tab's Fear/Greed gauge, which is just a relabeled
+// read of this same composite score (see renderFearGreed()) rather than a separate model.
+function gatherRegimeScoreInputs(){
+  return {
+    vix: numOrNaN(liveRegime.vix), pcr: liveRegime.pcr ?? null,
+    newHighs: numOrNaN(breadthHistory[0] ? breadthHistory[0].countNewHighN500 : null),
+    newLows: numOrNaN(breadthHistory[0] ? breadthHistory[0].countNewLowN500 : null),
+    pctAbove50Ema: breadthHistory[0] ? breadthHistory[0].pctAbove50Ema : null,
+    pctAbove200Ema: breadthHistory[0] ? breadthHistory[0].pctAbove200Ema : null,
+    nifty500Close: liveRegime.nifty500Close ?? null,
+    nifty500Ema20: computeNifty500Ema20Today(),
+    thrustAdvances: liveRegime.thrustAdvances ?? null, thrustDeclines: liveRegime.thrustDeclines ?? null
+  };
+}
+
 // NSE is closed every Saturday/Sunday, plus a handful of weekday holidays each year — on both,
 // the underlying www.nseindia.com endpoints just keep serving the last trading session's
 // numbers (they don't error), so without this check a tab-open on a non-trading day would
@@ -1409,7 +1471,8 @@ async function fetchRegimeLive(){
 // surface anything new), the allIndices-derived fields actually update through the trading
 // day. Only fires while Market Regime is the active tab, so it's a no-op cost-wise otherwise.
 setInterval(()=>{
-  if(document.querySelector('.tab.active')?.dataset.view === 'regime') fetchRegimeLive();
+  const view = document.querySelector('.tab.active')?.dataset.view;
+  if(view === 'regime' || view === 'stocks') fetchRegimeLive();
 }, 60000);
 
 // The score needs liveRegime (VIX/PCR/highs-lows/NIFTY500 close, one fetch) AND
@@ -1462,6 +1525,7 @@ function renderRegimeTab(){
   renderMarketThrust();
   renderSectorStrength();
   renderWeeklyMovers();
+  renderFearGreed();
   if(liveRegime.fetchError){
     document.getElementById('regime-statgrid').innerHTML = `<div class="empty">Could not reach /api/regime: ${liveRegime.fetchError}</div>`;
     document.getElementById('regime-fetched-label').textContent = '';
@@ -1474,17 +1538,9 @@ function renderRegimeTab(){
     document.getElementById('regime-fetched-label').textContent = '';
     return;
   }
-  const pctAbove50Ema = breadthHistory[0] ? breadthHistory[0].pctAbove50Ema : null;
-  const pctAbove200Ema = breadthHistory[0] ? breadthHistory[0].pctAbove200Ema : null;
   const newHighsN500 = breadthHistory[0] ? breadthHistory[0].countNewHighN500 : null;
   const newLowsN500 = breadthHistory[0] ? breadthHistory[0].countNewLowN500 : null;
-  const nifty500Ema20Today = computeNifty500Ema20Today();
-  const scored = computeRegimeScore({
-    vix: numOrNaN(liveRegime.vix), pcr: liveRegime.pcr ?? null,
-    newHighs: numOrNaN(newHighsN500), newLows: numOrNaN(newLowsN500),
-    pctAbove50Ema, pctAbove200Ema, nifty500Close: liveRegime.nifty500Close ?? null, nifty500Ema20: nifty500Ema20Today,
-    thrustAdvances: liveRegime.thrustAdvances ?? null, thrustDeclines: liveRegime.thrustDeclines ?? null
-  });
+  const scored = computeRegimeScore(gatherRegimeScoreInputs());
   document.getElementById('regime-fetched-label').textContent = liveRegime.fetchedAt ? ('Fetched at ' + new Date(liveRegime.fetchedAt).toLocaleTimeString('en-IN')) : '';
   const tile = (label, val, err) => `<div class="stat"><div class="num">${val==null?'-':(typeof val==='number'&&!Number.isInteger(val)?val.toFixed(2):val)}</div><div class="lbl">${label}${err?' <span class=\"flag\">'+err+'</span>':''}</div></div>`;
   // FII/DII net flows: positive = net buying, negative = net selling — colored and labeled
@@ -1520,24 +1576,14 @@ function renderRegimeTab(){
 // breadth pipeline, not this live NSE fetch. The market_regime columns are left as legacy/
 // unused (same "don't force a destructive migration" convention as capital's lev_comm).
 async function autoSaveRegimeSnapshot(){
-  const pcr = liveRegime.pcr ?? null;
-  const pctAbove50Ema = breadthHistory[0] ? breadthHistory[0].pctAbove50Ema : null;
-  const pctAbove200Ema = breadthHistory[0] ? breadthHistory[0].pctAbove200Ema : null;
-  const newHighsN500 = breadthHistory[0] ? breadthHistory[0].countNewHighN500 : null;
-  const newLowsN500 = breadthHistory[0] ? breadthHistory[0].countNewLowN500 : null;
-  const nifty500Ema20Today = computeNifty500Ema20Today();
-  const scored = computeRegimeScore({
-    vix: numOrNaN(liveRegime.vix), pcr,
-    newHighs: numOrNaN(newHighsN500), newLows: numOrNaN(newLowsN500),
-    pctAbove50Ema, pctAbove200Ema, nifty500Close: liveRegime.nifty500Close ?? null, nifty500Ema20: nifty500Ema20Today,
-    thrustAdvances: liveRegime.thrustAdvances ?? null, thrustDeclines: liveRegime.thrustDeclines ?? null
-  });
+  const inputs = gatherRegimeScoreInputs();
+  const scored = computeRegimeScore(inputs);
   const row = {
     user_id: session.user.id,
     snapshot_date: new Date().toISOString().slice(0,10),
     vix: liveRegime.vix ?? null, fii_net: liveRegime.fiiNet ?? null, dii_net: liveRegime.diiNet ?? null,
-    pcr, regime_label: scored.label,
-    nifty500_close: liveRegime.nifty500Close ?? null, nifty500_ema20: nifty500Ema20Today
+    pcr: inputs.pcr, regime_label: scored.label,
+    nifty500_close: liveRegime.nifty500Close ?? null, nifty500_ema20: inputs.nifty500Ema20
   };
   const { error } = await sb.from('market_regime').upsert(row, { onConflict: 'user_id,snapshot_date' });
   const savedEl = document.getElementById('regime-saved');
@@ -1892,6 +1938,158 @@ function renderWeeklyMovers(){
 fetch('/sectors.json').then(r=>r.json()).then(d=>{ sectorsData = d; renderSectorStrength(); }).catch(()=>{ /* panel just shows "Loading…" indefinitely — non-critical, static asset */ });
 fetch('/fo_universe.json').then(r=>r.json()).then(d=>{ fnoUniverse = new Set(d); renderSectorStrength(); }).catch(()=>{ /* F&O badges just never show — non-critical, static asset */ });
 
+// ---------- Stocks tab ----------
+// External content (news titles/links, trending search terms) is untrusted input — always
+// escape before interpolating into innerHTML, and only render a link if its protocol is
+// genuinely http(s), never trust a feed to not contain markup or a javascript: URI.
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function isHttpUrl(u){
+  return typeof u==='string' && /^https?:\/\//i.test(u);
+}
+
+// Fear & Greed is deliberately not a separate model — it's the same weighted composite as
+// the Market Regime tab's score (see computeRegimeScore()/gatherRegimeScoreInputs()), just
+// relabeled with the classic 5-band Fear/Greed framing. Google Trends has no reliable free
+// finance-sentiment API (its old unofficial dailytrends endpoint 404s as of this round — see
+// nse-market-data skill) — this reuses data we already trust instead of a fragile scrape.
+function fearGreedLabel(score){
+  if(score>=80) return 'Extreme Greed';
+  if(score>=60) return 'Greed';
+  if(score>=40) return 'Neutral';
+  if(score>=20) return 'Fear';
+  return 'Extreme Fear';
+}
+function renderFearGreed(){
+  const container = document.getElementById('fear-greed-panel');
+  if(!container) return; // not on the Stocks view
+  if(liveRegime.fetchError || liveRegime.marketClosed || liveRegime.vix===undefined){
+    container.innerHTML = '<div class="empty">Waiting for live regime data…</div>';
+    return;
+  }
+  const scored = computeRegimeScore(gatherRegimeScoreInputs());
+  if(scored.score==null){
+    container.innerHTML = '<div class="empty">Scoring… (needs a few more inputs to arrive)</div>';
+    return;
+  }
+  const cls = scoreClass(scored.label);
+  container.innerHTML = `
+    <div style="text-align:center; padding:4px 0;">
+      <div class="${cls}" style="font-size:32px; font-weight:bold; line-height:1;">${scored.score}</div>
+      <div class="${cls}" style="font-size:13px; font-weight:bold; margin-top:4px;">${fearGreedLabel(scored.score)}</div>
+      <div class="save-note" style="margin-top:8px;">Same composite as the Market Regime tab's score (0 = Extreme Fear, 100 = Extreme Greed).</div>
+    </div>
+  `;
+}
+
+// News + trending searches — one combined fetch (api/news.js), refreshed on Stocks tab-open
+// only (unlike Fear/Greed's underlying data, a news feed doesn't need a 60s auto-refresh).
+let newsData = null;
+async function fetchNews(){
+  try {
+    const r = await fetch('/api/news');
+    newsData = await r.json();
+  } catch(e) {
+    newsData = { fetchError: e.message || String(e) };
+  }
+  renderNewsPanel();
+  renderTrendingPanel();
+}
+function renderNewsList(items, err){
+  if(err) return `<div class="empty">${escapeHtml(err)}</div>`;
+  if(!items || !items.length) return '<div class="empty">No headlines right now.</div>';
+  return items.slice(0,6).map(n=>`
+    <div class="news-item">
+      ${isHttpUrl(n.link) ? `<a href="${escapeHtml(n.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(n.title)}</a>` : escapeHtml(n.title)}
+      ${n.source ? `<div class="src">${escapeHtml(n.source)}</div>` : ''}
+    </div>
+  `).join('');
+}
+function renderNewsPanel(){
+  const container = document.getElementById('news-panel');
+  if(!container) return;
+  if(!newsData){ container.innerHTML = '<div class="empty">Loading…</div>'; return; }
+  if(newsData.fetchError){ container.innerHTML = `<div class="empty">Could not reach /api/news: ${escapeHtml(newsData.fetchError)}</div>`; return; }
+  container.innerHTML = `
+    <div class="save-note" style="margin-bottom:6px;">India</div>
+    ${renderNewsList(newsData.indiaNews, newsData.indiaNewsError)}
+    <div class="save-note" style="margin:10px 0 6px 0;">World</div>
+    ${renderNewsList(newsData.worldNews, newsData.worldNewsError)}
+  `;
+}
+function renderTrendingPanel(){
+  const container = document.getElementById('trending-panel');
+  if(!container) return;
+  if(!newsData){ container.innerHTML = '<div class="empty">Loading…</div>'; return; }
+  if(newsData.fetchError || newsData.trendingError || !newsData.trending || !newsData.trending.length){
+    container.innerHTML = '<div class="empty">Not available right now.</div>';
+    return;
+  }
+  container.innerHTML = newsData.trending.slice(0,8).map(t=>`
+    <div class="trend-row"><span>${escapeHtml(t.title)}</span><span style="color:var(--text-dim);">${escapeHtml(t.traffic)}</span></div>
+  `).join('');
+}
+
+// Stock table — Name / Mcap / RS Score / Volume Deviation, all computed client-side from
+// data already tracked for other panels (ema_state's rsCloses/recentVolumes), plus one new
+// static file (marketcap.json — built the same way as sectors.json, from NSE's own NIFTY
+// 100/Midcap150/Smallcap250 constituent lists, which exactly partition the NIFTY 500).
+let marketCapData = null;
+function mcapClass(mc){
+  if(mc==='Large Cap') return 'equity';
+  if(mc==='Mid Cap') return 'fno';
+  if(mc==='Small Cap') return 'indexfut';
+  return '';
+}
+// Today's volume vs. the average of the 5 trading days right before it — recentVolumes (20-
+// day rolling window) already ends with today's volume as its last entry (pushed in
+// updateBreadthIfNeeded()), so the prior week is the 5 entries just before that.
+function volumeDeviationPct(sym){
+  const st = emaStateCache && emaStateCache[sym];
+  const rv = st && st.recentVolumes;
+  if(!Array.isArray(rv) || rv.length < 6) return null;
+  const today = rv[rv.length-1];
+  const priorWeek = rv.slice(-6,-1);
+  const avg = priorWeek.reduce((a,b)=>a+b,0)/priorWeek.length;
+  if(!avg) return null;
+  return (today-avg)/avg*100;
+}
+function renderStockTable(){
+  const container = document.getElementById('stock-table');
+  if(!container) return; // not on the Stocks view
+  if(!emaStateCache || !Object.keys(emaStateCache).length){
+    container.innerHTML = '<div class="empty">Needs today\'s breadth update first — give it a moment.</div>';
+    return;
+  }
+  const rsRatings = computeRSRatings();
+  const rows = Object.keys(emaStateCache).map(sym=>{
+    const st = emaStateCache[sym];
+    if(!st || st.lastClose==null) return null;
+    return {
+      sym,
+      mcap: (marketCapData && marketCapData[sym]) || '-',
+      rs: rsRatings[sym] ?? null,
+      volDev: volumeDeviationPct(sym)
+    };
+  }).filter(Boolean).sort((a,b)=>(b.rs ?? -1)-(a.rs ?? -1));
+  const freshness = document.getElementById('stocks-freshness');
+  if(freshness){
+    const anyState = Object.values(emaStateCache).find(s=>s && s.lastDate);
+    freshness.textContent = anyState ? `As of ${anyState.lastDate} · ${rows.length} names` : '';
+  }
+  container.innerHTML = `<div class="stock-table-list"><table style="font-size:12px;">
+    <tr><th>Name</th><th>Mcap</th><th>RS Score</th><th>Vol Dev (wk)</th></tr>
+    ${rows.map(r=>`<tr>
+      <td>${r.sym}</td>
+      <td><span class="pill ${mcapClass(r.mcap)}">${r.mcap}</span></td>
+      <td class="${rsRatingClass(r.rs)}">${r.rs ?? '-'}</td>
+      <td class="${r.volDev==null?'':(r.volDev>=0?'pos':'neg')}">${r.volDev==null?'-':(r.volDev>=0?'+':'')+r.volDev.toFixed(0)+'%'}</td>
+    </tr>`).join('')}
+  </table></div>`;
+}
+fetch('/marketcap.json').then(r=>r.json()).then(d=>{ marketCapData = d; renderStockTable(); }).catch(()=>{ /* Mcap column just shows "-" — non-critical, static asset */ });
+
 // Triggered on opening the Market Regime tab — no cron, since a cron-invoked function
 // would need a service_role key (or a long-lived stored credential) to write to Supabase,
 // which this app never does. Fetches just today's single bhavcopy (fast) and applies the
@@ -2047,17 +2245,20 @@ async function updateBreadthIfNeeded(){
 // or short-circuited on already-current/weekend/error) — re-renders the breadth charts, then
 // gives the Regime Score tile a chance to pick up the now-current % above 50 EMA and
 // (if this is the first time all inputs are ready) triggers the once-a-day auto-save.
+// updateBreadthIfNeeded() only refreshes emaStateCache on the branch that actually recomputes
+// EMAs — every other exit path (already up to date, weekend, fetch error) still needs it
+// populated at least once per page load for renderSectorStrength()/renderStockTable().
+async function ensureEmaStateCache(){
+  if(emaStateCache) return;
+  const { data: stateRow } = await sb.from('ema_state').select('state').maybeSingle();
+  emaStateCache = stateRow ? stateRow.state : {};
+}
 async function afterBreadthUpdate(){
   await fetchBreadthHistory();
-  // updateBreadthIfNeeded() only refreshes emaStateCache on the branch that actually
-  // recomputes EMAs — every other exit path (already up to date, weekend, fetch error)
-  // still needs it populated at least once per page load for renderSectorStrength().
-  if(!emaStateCache){
-    const { data: stateRow } = await sb.from('ema_state').select('state').maybeSingle();
-    emaStateCache = stateRow ? stateRow.state : {};
-  }
+  await ensureEmaStateCache();
   renderSectorStrength();
   renderWeeklyMovers();
+  renderStockTable();
   if(!liveRegime.fetchError && !liveRegime.marketClosed && liveRegime.vix!==undefined) renderRegimeTab();
   await maybeAutoSaveRegime();
 }
