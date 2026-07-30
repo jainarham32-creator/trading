@@ -179,7 +179,11 @@
   @media (max-width:700px){.statgrid{grid-template-columns:repeat(2,1fr);}}
   .stat{background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:12px; text-align:center;}
   .stat .num{font-size:20px; color:var(--amber); font-weight:bold;}
+  .stat .num.pos{color:var(--green);}
+  .stat .num.neg{color:var(--red);}
+  .stat .num.neutral{color:var(--yellow);}
   .stat .lbl{font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;}
+  #regime-statgrid .stat .num{font-size:15px;}
   .empty{color:var(--text-dim); font-style:italic; padding:20px 0; text-align:center;}
   .save-note{font-size:11px; color:var(--text-dim); margin-top:8px;}
   .rule-block textarea{min-height:100px;}
@@ -208,8 +212,10 @@
   .setup-row input{margin-top:0;}
   .paged-layout{display:grid; grid-template-columns:240px 1fr; gap:16px;}
   .paged-layout.regime-layout{grid-template-columns:240px 1fr 460px;}
+  .paged-layout.journal-layout{grid-template-columns:240px 1fr 340px;}
   @media (max-width:1200px){.paged-layout.regime-layout{grid-template-columns:240px 1fr 340px;}}
-  @media (max-width:900px){.paged-layout, .paged-layout.regime-layout{grid-template-columns:1fr;}}
+  @media (max-width:1100px){.paged-layout.journal-layout{grid-template-columns:240px 1fr 280px;}}
+  @media (max-width:900px){.paged-layout, .paged-layout.regime-layout, .paged-layout.journal-layout{grid-template-columns:1fr;}}
   .paged-layout .main-col{max-width:960px;}
   .side-panel button{width:100%;}
   .sector-bar-row{display:grid; grid-template-columns:130px 1fr 38px; align-items:center; gap:10px; margin-bottom:4px; cursor:pointer;}
@@ -285,7 +291,7 @@
 <div id="app" style="display:none">
 
 <div class="topbar">
-  <div class="brand">Market Terminal / <b>Market Regime · Exposure · Journal</b></div>
+  <div class="brand">Market Terminal / <b>Market Regime · Journal</b></div>
   <div class="userbox">
     <span class="email" id="whoami"></span>
     <button class="ghost small" onclick="signOut()">Log Out</button>
@@ -295,7 +301,6 @@
 
 <div class="tabs">
   <div class="tab active" data-view="regime">Market Regime</div>
-  <div class="tab" data-view="exposure">Exposure</div>
   <div class="tab" data-view="journal">Journal</div>
 </div>
 
@@ -367,70 +372,23 @@
       <div>
         <div class="panel">
           <h2>Market Thrust</h2>
-          <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Whole-market advance/decline — % of today's traded stocks closing above their previous close.</div>
+          <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Whole-market advance/decline, live during market hours (refreshes every ~60s and on "Refresh from NSE"; falls back to the last close if live data is unavailable).</div>
           <div id="market-thrust-panel"></div>
           <div id="market-thrust-history" style="margin-top:12px;"></div>
         </div>
 
         <div class="panel">
           <h2>Sector Strength</h2>
-          <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">% of each sector's tracked NIFTY 500 constituents trading above their 200-day EMA.</div>
+          <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Live % of each sector index's constituents advancing today (falls back to % above 200-EMA as of last close if live data is unavailable).</div>
           <div id="sector-strength-panel"></div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- EXPOSURE -->
-  <div class="view" id="view-exposure">
-    <div class="paged-layout">
-      <div class="panel side-panel">
-        <h2>Capital & Leverage Caps</h2>
-        <label>Total Capital</label><input id="cap-total" type="number" step="any">
-        <label>Max Leverage — Equity Cash</label><input id="cap-lev-equity" type="number" step="any">
-        <label>Max Leverage — Equity Futures</label><input id="cap-lev-fno" type="number" step="any">
-        <label>Max Leverage — Index Future</label><input id="cap-lev-indexfut" type="number" step="any">
-        <label>Max Risk per Trade (%)</label><input id="cap-risk-trade" type="number" step="any">
-
-        <div style="color:var(--text-dim); margin-top:16px; padding-top:12px; border-top:1px solid var(--line); font-size:12px;">
-          Capital Allocation by Segment — what share of Total Capital is earmarked for each segment.
-          Position-sizing checks measure a trade's risk against its own segment's slice, not your whole capital.
-        </div>
-        <label>Alloc — Equity Cash (%)</label><input id="cap-alloc-equity" type="number" step="any">
-        <label>Alloc — Equity Futures (%)</label><input id="cap-alloc-fno" type="number" step="any">
-        <label>Alloc — Index Future (%)</label><input id="cap-alloc-indexfut" type="number" step="any">
-
-        <div style="color:var(--text-dim); margin-top:16px; padding-top:12px; border-top:1px solid var(--line); font-size:12px;">
-          Position Sizing Multipliers — applied on top of "Max Risk per Trade" based on market-cap class and regime.
-        </div>
-        <label>Mult — Large Cap</label><input id="cap-mult-large" type="number" step="any">
-        <label>Mult — Mid Cap</label><input id="cap-mult-mid" type="number" step="any">
-        <label>Mult — Small Cap</label><input id="cap-mult-small" type="number" step="any">
-        <label>Mult — Risk-On</label><input id="cap-mult-riskon" type="number" step="any">
-        <label>Mult — Neutral</label><input id="cap-mult-neutral" type="number" step="any">
-        <label>Mult — Risk-Off</label><input id="cap-mult-riskoff" type="number" step="any">
-        <button onclick="saveCapital()">Save</button>
-        <span class="save-note" id="cap-saved"></span>
-
-        <div class="side-row" id="playbook-row" onclick="openPlaybookModal()">
-          <span>Playbook</span><span class="chev">›</span>
-        </div>
-      </div>
-
-      <div class="main-col">
-        <div class="panel">
-          <h2>Current Exposure (from open positions)</h2>
-          <div id="exposure-table"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- JOURNAL -->
+  <!-- JOURNAL (merged with the former Exposure tab) -->
   <div class="view" id="view-journal">
-    <div class="statgrid" id="statgrid"></div>
-
-    <div class="paged-layout">
+    <div class="paged-layout journal-layout">
       <div class="panel side-panel">
         <div class="side-row" id="trade-journal-row" onclick="toggleSideRow('trade-journal')" style="margin-top:0; border-top:none;">
           <span>Trade Journal</span><span class="chev">›</span>
@@ -438,9 +396,15 @@
         <div class="side-body" id="trade-journal-body">
           <div class="trade-book-list" id="trade-book-list"></div>
         </div>
+
+        <div class="side-row" id="playbook-row" onclick="openPlaybookModal()" style="border-top:1px solid var(--line);">
+          <span>Playbook & Settings</span><span class="chev">›</span>
+        </div>
       </div>
 
       <div class="main-col">
+        <div class="statgrid" id="statgrid"></div>
+
         <div class="panel">
           <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:12px;">
             <h2 style="margin:0; border:none; padding:0;">Open Positions</h2>
@@ -455,6 +419,14 @@
           <div id="closed-trades"></div>
         </div>
       </div>
+
+      <div>
+        <div class="panel">
+          <h2>Current Exposure</h2>
+          <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Notional stock value held per segment, vs. its leverage cap (set in Playbook & Settings).</div>
+          <div id="exposure-table"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -463,12 +435,46 @@
 <div class="modal-backdrop" id="playbook-modal-backdrop" onclick="if(event.target===this) closePlaybookModal()">
   <div class="panel modal-panel wide">
     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:12px;">
-      <h2 style="margin:0; border:none; padding:0;">Playbook</h2>
+      <h2 style="margin:0; border:none; padding:0;">Playbook & Settings</h2>
       <button class="ghost small" onclick="closePlaybookModal()">Close</button>
     </div>
-    <div style="color:var(--text-dim); margin-bottom:10px;">
-      Edit these once, then leave them alone — this is what you check your trades against,
-      not something to rewrite mid-trade.
+
+    <div style="color:var(--text-dim); margin-bottom:4px;">
+      Capital & Leverage — the actual numbers your Journal's sizing check and the Current Exposure table run on. Fill in once, update whenever your capital changes.
+    </div>
+    <div class="row2">
+      <div><label>Total Capital (₹)</label><input id="cap-total" type="number" step="any"></div>
+      <div><label>Max Risk per Trade (%)</label><input id="cap-risk-trade" type="number" step="any"></div>
+    </div>
+    <label style="margin-top:16px;">Max Leverage (×) — Equity Cash / Equity Futures / Index Future</label>
+    <div class="row3">
+      <input id="cap-lev-equity" type="number" step="any">
+      <input id="cap-lev-fno" type="number" step="any">
+      <input id="cap-lev-indexfut" type="number" step="any">
+    </div>
+    <label style="margin-top:16px;">Capital Allocation (%) — Equity Cash / Equity Futures / Index Future</label>
+    <div class="row3">
+      <input id="cap-alloc-equity" type="number" step="any">
+      <input id="cap-alloc-fno" type="number" step="any">
+      <input id="cap-alloc-indexfut" type="number" step="any">
+    </div>
+    <label style="margin-top:16px;">Sizing Multiplier — Large Cap / Mid Cap / Small Cap</label>
+    <div class="row3">
+      <input id="cap-mult-large" type="number" step="any">
+      <input id="cap-mult-mid" type="number" step="any">
+      <input id="cap-mult-small" type="number" step="any">
+    </div>
+    <label style="margin-top:16px;">Sizing Multiplier — Risk-On / Neutral / Risk-Off</label>
+    <div class="row3">
+      <input id="cap-mult-riskon" type="number" step="any">
+      <input id="cap-mult-neutral" type="number" step="any">
+      <input id="cap-mult-riskoff" type="number" step="any">
+    </div>
+    <button onclick="saveCapital()">Save Numbers</button>
+    <span class="save-note" id="cap-saved"></span>
+
+    <div style="color:var(--text-dim); margin:18px 0 10px 0; padding-top:12px; border-top:1px solid var(--line);">
+      Playbook Rules — plain-language notes to check yourself against. The numbers above are what actually drive the sizing checks; these are optional context, not required.
     </div>
     <div id="rules-blocks"></div>
     <button onclick="saveRules()">Save Playbook</button>
@@ -706,12 +712,11 @@ async function loadAllData(){
   document.getElementById('closed-trades').innerHTML = '<div class="empty">Loading…</div>';
   document.getElementById('exposure-table').innerHTML = '<div class="empty">Loading…</div>';
   await Promise.all([fetchTrades(), fetchRules(), fetchCapital(), fetchLatestRegime()]);
-  renderJournal();
+  renderJournal(); // also renders Exposure — the two share one tab now
   renderRules();
   renderSetupOptions();
   populateSetupDropdown();
   loadCapitalForm();
-  renderExposure();
   // Market Regime is the default landing tab, but its own data-loading is otherwise only
   // wired to the tab-click handler below — without this it would never fire on first login,
   // only after clicking away and back. Trigger it here for whichever tab starts active.
@@ -720,7 +725,6 @@ async function loadAllData(){
 
 // ---------- tabs ----------
 function onTabShown(view){
-  if(view==='exposure') renderExposure();
   if(view==='regime'){ fetchRegimeLive(); fetchRegimeHistory(); updateBreadthIfNeeded(); }
 }
 document.querySelectorAll('.tab').forEach(t=>{
@@ -972,6 +976,7 @@ function renderJournal(){
 
   renderJournalSummary();
   renderTradeBook();
+  renderExposure(); // Exposure now shares this tab with Journal — kept in sync on every render
 }
 
 function renderTradeBook(){
@@ -1006,21 +1011,26 @@ function renderJournalSummary(){
 }
 
 // ---------- rules ----------
+// Trimmed from 8 fields to 6 this round — "Leverage Caps" and "Setups I Trade" were free-text
+// duplicates of things that now have real number/dropdown inputs right above/below this
+// section (Capital & Leverage's actual leverage caps, and the Trade Setups list) — removing
+// them from the UI (their DB columns are untouched, just no longer written to) keeps this
+// simple rather than asking a beginner to maintain the same fact in two places. Each field
+// gets a one-line example so it's clear what belongs there without needing to guess.
 const ruleFields = [
-  {key:'sizing', label:'Position Sizing Rules'},
-  {key:'stops', label:'Stop-Loss Rules'},
-  {key:'trailing', label:'Trailing Rules'},
-  {key:'targets', label:'Target / Profit-Taking Rules'},
-  {key:'leverage', label:'Leverage Caps'},
-  {key:'setups', label:'Setups I Trade'},
-  {key:'checklist', label:'Pre-Trade Checklist'},
-  {key:'nonnegotiables', label:'Non-Negotiables — Never Break These'}
+  {key:'sizing', label:'Position Sizing Rules', hint:'e.g. "Risk max 1% per trade. Size down in choppy markets."'},
+  {key:'stops', label:'Stop-Loss Rules', hint:'e.g. "Always place a hard stop below the recent swing low."'},
+  {key:'trailing', label:'Trailing Rules', hint:'e.g. "Move stop to breakeven once the trade is up 1R."'},
+  {key:'targets', label:'Target / Profit-Taking Rules', hint:'e.g. "Book half the position at 2R, trail the rest."'},
+  {key:'checklist', label:'Pre-Trade Checklist', hint:'e.g. "Setup confirmed? Risk sized? Regime checked?"'},
+  {key:'nonnegotiables', label:'Non-Negotiables — Never Break These', hint:'e.g. "Never skip the stop-loss. Never average into a loser."'}
 ];
 
 function renderRules(){
   document.getElementById('rules-blocks').innerHTML = ruleFields.map(f=>`
     <div class="rule-block">
       <label>${f.label}</label>
+      <div style="font-size:11px; color:var(--text-dim); margin:-2px 0 6px 0;">${f.hint}</div>
       <textarea id="rule-${f.key}">${rules[f.key]||''}</textarea>
     </div>
   `).join('');
@@ -1127,8 +1137,7 @@ async function saveCapital(){
   }, { onConflict: 'user_id' });
   if(error){ alert('Could not save capital settings: '+error.message); return; }
   document.getElementById('cap-saved').textContent = 'Saved ' + new Date().toLocaleTimeString('en-IN');
-  renderExposure();
-  renderJournal();
+  renderJournal(); // also renders Exposure
 }
 
 function computeExposureBySegment(){
@@ -1306,6 +1315,14 @@ async function fetchRegimeLive(){
   await maybeAutoSaveRegime();
 }
 
+// Keeps VIX, Market Thrust and Sector Strength genuinely live while the tab is open — unlike
+// FII/DII/PCR (EOD-published once a day by NSE, so re-fetching them is harmless but doesn't
+// surface anything new), the allIndices-derived fields actually update through the trading
+// day. Only fires while Market Regime is the active tab, so it's a no-op cost-wise otherwise.
+setInterval(()=>{
+  if(document.querySelector('.tab.active')?.dataset.view === 'regime') fetchRegimeLive();
+}, 60000);
+
 // The score needs liveRegime (VIX/PCR/highs-lows/NIFTY500 close, one fetch) AND
 // breadthHistory[0] (% above 50 EMA, a separate daily pipeline) AND currentRegime's prior
 // nifty500Ema20 — these arrive from independent async chains with no ordering guarantee,
@@ -1350,6 +1367,11 @@ function scoreClass(label){
 }
 
 function renderRegimeTab(){
+  // Both read liveRegime directly and degrade gracefully on their own (fetch error, market
+  // closed, or data not arrived yet) — called unconditionally here so Market Thrust/Sector
+  // Strength refresh on every live fetch, not just the "happy path" below.
+  renderMarketThrust();
+  renderSectorStrength();
   if(liveRegime.fetchError){
     document.getElementById('regime-statgrid').innerHTML = `<div class="empty">Could not reach /api/regime: ${liveRegime.fetchError}</div>`;
     document.getElementById('regime-fetched-label').textContent = '';
@@ -1525,24 +1547,37 @@ function renderBreadthCharts(){
 }
 
 // ---------- market thrust ----------
-// Whole-market advance/decline, computed once per day alongside the rest of the breadth
-// pipeline (see updateBreadthIfNeeded()) — a plain CSS conic-gradient pie, no charting
-// library needed for a single-day 2-slice view. Green when advancers are the majority,
-// red otherwise, matching the same convention as everywhere else in this app.
+// Whole-market advance/decline. Prefers liveRegime.thrustAdvances/thrustDeclines — NSE's
+// allIndices endpoint carries a live advances/declines count per index (including NIFTY 500)
+// that updates throughout the trading day, refreshed every fetchRegimeLive() call (tab-open,
+// "Refresh from NSE", and the periodic auto-refresh below) — no need to wait for the EOD
+// bhavcopy. Falls back to the bhavcopy-derived breadthHistory[0] (yesterday's real count)
+// only when live data isn't available (market closed, fetch error), same "degrade to last
+// known good" pattern as everywhere else, rather than showing nothing.
 function renderMarketThrust(){
   const container = document.getElementById('market-thrust-panel');
   if(!container) return; // not on the Market Regime view
-  const latest = breadthHistory[0];
-  if(!latest || latest.countAdvances==null || latest.countDeclines==null){
+  const liveOk = liveRegime && !liveRegime.fetchError && !liveRegime.marketClosed
+    && liveRegime.thrustAdvances!=null && liveRegime.thrustDeclines!=null;
+  let advances, declines, noteHtml;
+  if(liveOk){
+    advances = liveRegime.thrustAdvances; declines = liveRegime.thrustDeclines;
+    noteHtml = `Live as of ${liveRegime.fetchedAt ? new Date(liveRegime.fetchedAt).toLocaleTimeString('en-IN') : 'just now'}`;
+  } else {
+    const latest = breadthHistory[0];
+    if(!latest || latest.countAdvances==null || latest.countDeclines==null){
+      container.innerHTML = '<div class="empty">No market thrust data yet.</div>';
+      return;
+    }
+    advances = latest.countAdvances; declines = latest.countDeclines;
+    noteHtml = `As of ${latest.snapshotDate} (last close — live data unavailable)`;
+  }
+  const total = advances + declines;
+  if(!total){
     container.innerHTML = '<div class="empty">No market thrust data yet.</div>';
     return;
   }
-  const total = latest.countAdvances + latest.countDeclines;
-  if(total === 0){
-    container.innerHTML = '<div class="empty">No market thrust data yet.</div>';
-    return;
-  }
-  const advPct = latest.countAdvances / total * 100;
+  const advPct = advances / total * 100;
   const green = chartColor('--green'), red = chartColor('--red');
   const gradient = `conic-gradient(${green} 0% ${advPct}%, ${red} ${advPct}% 100%)`;
   container.innerHTML = `
@@ -1554,9 +1589,9 @@ function renderMarketThrust(){
         </div>
       </div>
       <div class="thrust-legend">
-        <div><span class="pos">●</span> Advances: <b>${latest.countAdvances}</b></div>
-        <div><span class="neg">●</span> Declines: <b>${latest.countDeclines}</b></div>
-        <div style="margin-top:4px;">As of ${latest.snapshotDate}</div>
+        <div><span class="pos">●</span> Advances: <b>${advances}</b></div>
+        <div><span class="neg">●</span> Declines: <b>${declines}</b></div>
+        <div style="margin-top:4px;">${noteHtml}</div>
       </div>
     </div>
   `;
@@ -1632,19 +1667,29 @@ function toggleSectorDetail(i){
   const el = document.getElementById('sector-detail-'+i);
   if(el) el.classList.toggle('open');
 }
-function renderSectorStrength(){
-  const container = document.getElementById('sector-strength-panel');
-  if(!container) return; // not on the Market Regime view
-  if(!sectorsData){
-    container.innerHTML = '<div class="empty">Loading sector data…</div>';
-    return;
-  }
-  if(!emaStateCache){
-    container.innerHTML = '<div class="empty">Sector data needs today\'s breadth update first.</div>';
-    return;
-  }
-  const rsRatings = computeRSRatings();
-  const rows = Object.keys(sectorsData).map(sector=>{
+// Live source: NSE's allIndices endpoint carries an advances/declines count per sector
+// index that updates throughout the trading day (see api/regime.js's SECTOR_INDEX_MAP) —
+// this is what makes the panel genuinely real-time instead of only updating once the EOD
+// bhavcopy is published in the evening.
+function computeSectorPctAdvancing(){
+  const advDecl = liveRegime && !liveRegime.fetchError && !liveRegime.marketClosed ? liveRegime.sectorAdvDecl : null;
+  if(!advDecl) return null;
+  const out = {};
+  Object.keys(advDecl).forEach(sector=>{
+    const d = advDecl[sector];
+    const total = (d.advances||0) + (d.declines||0);
+    if(total) out[sector] = { pct: d.advances/total*100, mode:'live', advances:d.advances, declines:d.declines };
+  });
+  return Object.keys(out).length ? out : null;
+}
+// Fallback when live data isn't available (market closed, fetch error) — the older
+// %-above-200-EMA measure, computed from the daily breadth pipeline's ema_state cache.
+// Still a legitimate trend read, just not intraday-live, so it's a graceful degrade rather
+// than showing nothing.
+function computeSectorPctAboveEma(){
+  if(!sectorsData || !emaStateCache) return null;
+  const out = {};
+  Object.keys(sectorsData).forEach(sector=>{
     let above = 0, counted = 0;
     sectorsData[sector].forEach(sym=>{
       const st = emaStateCache[sym];
@@ -1652,16 +1697,27 @@ function renderSectorStrength(){
       counted++;
       if(st.lastClose > st.ema200) above++;
     });
-    return counted ? { sector, pct: above/counted*100 } : null;
-  }).filter(Boolean).sort((a,b)=>b.pct-a.pct);
+    if(counted) out[sector] = { pct: above/counted*100, mode:'ema200' };
+  });
+  return Object.keys(out).length ? out : null;
+}
+function renderSectorStrength(){
+  const container = document.getElementById('sector-strength-panel');
+  if(!container) return; // not on the Market Regime view
+  const live = computeSectorPctAdvancing();
+  const data = live || computeSectorPctAboveEma();
+  if(!data){
+    container.innerHTML = '<div class="empty">Loading sector data…</div>';
+    return;
+  }
+  const rsRatings = computeRSRatings();
+  const rows = Object.keys(data).map(sector=>Object.assign({sector}, data[sector])).sort((a,b)=>b.pct-a.pct);
+  const freshnessNote = live
+    ? `<div class="save-note" style="margin-bottom:10px;">Live · % advancing today · ${liveRegime.fetchedAt ? new Date(liveRegime.fetchedAt).toLocaleTimeString('en-IN') : 'just now'}</div>`
+    : `<div class="save-note" style="margin-bottom:10px;">% above 200-EMA (as of last close) — live data unavailable</div>`;
 
-  // Surfaces the underlying data's actual date so staleness is immediately visible rather
-  // than something you have to guess at or dig into Supabase to check.
-  const anyState = Object.values(emaStateCache).find(s=>s && s.lastDate);
-  const freshnessNote = anyState ? `<div class="save-note" style="margin-bottom:10px;">Sector data as of ${anyState.lastDate}</div>` : '';
-
-  container.innerHTML = freshnessNote + (rows.length===0 ? '<div class="empty">No sector data available yet.</div>' : rows.map((r,i)=>{
-    const top10 = sectorsData[r.sector]
+  container.innerHTML = freshnessNote + rows.map((r,i)=>{
+    const top10 = ((sectorsData && sectorsData[r.sector]) || [])
       .filter(sym=>rsRatings[sym]!=null)
       .sort((a,b)=>rsRatings[b]-rsRatings[a])
       .slice(0,10);
@@ -1671,6 +1727,7 @@ function renderSectorStrength(){
         <span class="sector-detail-rs ${rsRatingClass(rsRatings[sym])}">${rsRatings[sym]}</span>
       </div>
     `).join('') : '<div class="empty" style="padding:6px 0;">RS Rating needs ~3 more months of tracked history to warm up.</div>';
+    const subhead = r.mode==='live' ? `${r.advances} advancing / ${r.declines} declining today` : `% of constituents above their 200-day EMA`;
     return `
     <div class="sector-bar-row" onclick="toggleSectorDetail(${i})">
       <div class="sector-bar-label">${r.sector}</div>
@@ -1678,10 +1735,10 @@ function renderSectorStrength(){
       <div class="sector-bar-pct">${r.pct.toFixed(0)}%</div>
     </div>
     <div class="sector-detail" id="sector-detail-${i}">
-      <div class="sector-detail-header">Top ${top10.length || 0} by RS Rating (1–99, ~3-month return percentile vs. tracked universe)</div>
+      <div class="sector-detail-header">${subhead} · Top ${top10.length || 0} by RS Rating (1–99, ~3-month return percentile vs. tracked universe)</div>
       ${detailRows}
     </div>`;
-  }).join(''));
+  }).join('');
 }
 fetch('/sectors.json').then(r=>r.json()).then(d=>{ sectorsData = d; renderSectorStrength(); }).catch(()=>{ /* panel just shows "Loading…" indefinitely — non-critical, static asset */ });
 fetch('/fo_universe.json').then(r=>r.json()).then(d=>{ fnoUniverse = new Set(d); renderSectorStrength(); }).catch(()=>{ /* F&O badges just never show — non-critical, static asset */ });
