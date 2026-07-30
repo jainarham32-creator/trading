@@ -98,19 +98,25 @@ The bhavcopy-based pipeline above is inherently EOD-only (NSE publishes it once,
 
 `https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js`, loaded via `<script>` tag alongside the Supabase UMD one. Chart instances are created once per container and cached in `chartCache` (`getOrCreateChart()` in `index.html`) — re-renders call `.setData()` on the cached series, never recreate the chart, so zoom/pan state and canvas instances survive repeated tab visits. Mouse-wheel zoom + drag-pan work by default in this library, no extra config. Colors are read once from this app's CSS custom properties (`chartColor('--amber')` etc.) rather than hardcoded hex, so the chart palette stays in sync with the rest of the UI. Both `regimeHistory` and `breadthHistory` are queried newest-first for table display, so chart-feeding code reverses to ascending before `setData()`.
 
-## Regime scoring v2 (client-side, `computeRegimeScore()` in `index.html`)
+## Regime scoring v3 (client-side, `computeRegimeScore()` in `index.html`)
 
-Rewritten this round from a small +1/-1 integer heuristic to 5 factors, each scored 0–100 and weighted equally (20%), averaged into one composite:
+v2 (5 equal-weighted factors, hard step bands) was replaced this round with 7 factors, weighted by how much each typically says about regime health, each scored on a **smooth continuum** rather than a few discrete steps (a 9-vs-1 new-highs day and a 6-vs-4 day used to both score 100 under the old "highs>lows→100" rule; now they read as meaningfully different numbers). Two factors are new: `%above200EMA` (the data was already computed for its own chart but never fed into the score) and live Market Thrust (this round's `allIndices`-derived advance/decline, see above) — deliberately kept at a low weight since a single day's tide is noisier than the more structural factors:
 
-| Factor | Bands → score |
-|---|---|
-| VIX | `<14`→100 · `14–20`→66 · `20–25`→33 · `>25`→0 |
-| % NIFTY 500 above 50 EMA | `<20`→0 · `20–50`→60 · `50–70`→100 · `>70`→40 (overbought — a caution flag, not an all-clear) |
-| PCR | `≤0.8`→0, `≥1.2`→100, straight-line interpolation between |
-| New Highs vs Lows (NIFTY 500, 52-week — see the 252-day section below) | `newHighs > newLows`→100 · `newLows > 1.5×newHighs`→0 · else→50 |
-| NIFTY 500 vs. its own 20 EMA (new, see below) | above→100 · 0 to −2% below→50 · more than −2% below→0 |
+| Factor | Weight | Score formula |
+|---|---|---|
+| VIX | 20% | `clamp(100 - (vix-12)/(28-12)*100, 0, 100)` — 100 at ≤12 (calm), 0 at ≥28 (fearful) |
+| % NIFTY 500 above 50 EMA | 15% | `breadthFactor(pct)`: 0 at ≤10%, rises linearly to 100 at 65%, eases back down to 60 by 90% (overbought caution, not an all-clear) |
+| % NIFTY 500 above 200 EMA | 15% | same `breadthFactor(pct)` shape, applied to the 200-EMA breadth series |
+| PCR | 15% | `≤0.7`→0, `≥1.3`→100, straight-line interpolation between (widened from v2's 0.8–1.2 band) |
+| New Highs vs Lows (NIFTY 500, 252-day) | 15% | `newHighs / (newHighs+newLows) * 100` — continuous ratio, not a 3-value step; `0` new highs and `0` new lows on a quiet day scores a genuine 50 (balanced), not treated as missing data |
+| NIFTY 500 vs. its own 20 EMA | 10% | `clamp(50 + pctDiff/3*50, 0, 100)` — 0 at 3% below, 100 at 3% above |
+| Market Thrust (live, today's whole-market advance/decline) | 10% | `thrustAdvances / (thrustAdvances+thrustDeclines) * 100` — sourced from `liveRegime`, same live `allIndices` data the Market Thrust pie chart shows |
 
-`score ≥ 65 → "Risk-On"`, `≤ 35 → "Risk-Off"`, else `"Neutral"` — same 3-bucket label everywhere else in the app (`.pos`/`.neg` coloring, `regimeMult()` lookups, `market_regime.regime_label`) is unchanged. **Any single missing factor makes the whole score `null`** (rendered as "Scoring…", never a partial average) — this matters because the 5 inputs come from two independent async chains (`liveRegime` from `/api/regime` in one shot; `breadthHistory[0].pctAbove50Ema` from the separate breadth pipeline) with no ordering guarantee. `maybeAutoSaveRegime()` gates the actual save the same way, plus a `regimeAutoSavedForDate` flag so it only fires once per day regardless of which of `fetchRegimeLive()` / `afterBreadthUpdate()` resolves last.
+`score ≥ 65 → "Risk-On"`, `≤ 35 → "Risk-Off"`, else `"Neutral"` — same 3-bucket label everywhere else in the app (`.pos`/`.neg` coloring, `regimeMult()` lookups, `market_regime.regime_label`) is unchanged, and weights are declared in one place (`REGIME_WEIGHTS` in `index.html`) so adjusting them later doesn't mean hunting through `computeRegimeScore()`'s body. **Any single missing factor makes the whole score `null`** (rendered as "Scoring…", never a partial average) — now true of all 7 inputs, which arrive via three independent paths: `liveRegime` from `/api/regime` (vix, pcr, nifty500Close, thrustAdvances/thrustDeclines — all in one fetch), `breadthHistory[0]` from the separate breadth pipeline (pctAbove50Ema, pctAbove200Ema, newHighs/newLows), and `currentRegime.nifty500Ema20` (yesterday's saved value, rolled forward). `maybeAutoSaveRegime()` gates the actual save the same way, plus a `regimeAutoSavedForDate` flag so it only fires once per day regardless of which async chain resolves last.
+
+### Weekly Top/Worst Movers (new this round, `computeWeeklyTopMovers()`/`renderWeeklyMovers()`)
+
+A small table under Sector Strength: best/worst 2 NIFTY 500 names by trailing 5-trading-day return, for each of the last 3 weeks. **No new data** — reuses `emaStateCache`'s existing `rsCloses` array (66 trading days, already maintained for the RS Rating drill-down): a trading week is 5 trading days, so slicing that same array in 5-day chunks from the end (`w=0` → most recent 5 days = "This Week", `w=1` → the 5 before that = "Last Week", etc.) gives up to ~13 weekly buckets for free. Stops adding weeks once a bucket has no symbols with enough history rather than showing an empty/misleading row.
 
 `market_regime` is keyed on `(user_id, snapshot_date)` with a unique constraint — `autoSaveRegimeSnapshot()` upserts with `onConflict:'user_id,snapshot_date'`, so re-saving the same day overwrites rather than duplicating.
 
