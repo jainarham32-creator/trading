@@ -69,6 +69,7 @@
   }
   .brand b{color:var(--text);}
   .clock{color:var(--text-dim); font-size:12px;}
+  .greeting-bar{padding:6px 20px; font-size:11px; color:var(--text-dim); border-bottom:1px solid var(--line); background:var(--panel);}
   .tabs{
     display:flex;
     gap:2px;
@@ -274,6 +275,10 @@
       <div class="subtab active" id="mode-signin" onclick="setAuthMode('signin')">Log In</div>
       <div class="subtab" id="mode-signup" onclick="setAuthMode('signup')">Sign Up</div>
     </div>
+    <div id="auth-name-row" style="display:none;">
+      <label>Full Name</label>
+      <input id="auth-name" type="text" autocomplete="name">
+    </div>
     <label>Email</label>
     <input id="auth-email" type="email" autocomplete="username">
     <label>Password</label>
@@ -304,6 +309,7 @@
     <div class="clock" id="clock"></div>
   </div>
 </div>
+<div class="greeting-bar" id="greeting-bar"></div>
 
 <div class="tabs">
   <div class="tab active" data-view="regime">Market Regime</div>
@@ -392,7 +398,7 @@
 
         <div class="panel">
           <h2>Weekly Top / Worst Movers</h2>
-          <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Best/worst 2 NIFTY 500 names by trailing 5-trading-day return, last 3 weeks — same tracked universe as RS Rating.</div>
+          <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Best/worst 2 sectors by average constituent weekly return, last 3 weeks.</div>
           <div id="weekly-movers-panel"></div>
         </div>
       </div>
@@ -632,6 +638,7 @@ function setAuthMode(mode){
   document.getElementById('mode-signin').classList.toggle('active', mode==='signin');
   document.getElementById('mode-signup').classList.toggle('active', mode==='signup');
   document.getElementById('auth-submit').textContent = mode==='signin' ? 'Log In' : 'Sign Up';
+  document.getElementById('auth-name-row').style.display = mode==='signup' ? '' : 'none';
   setAuthStatus('');
 }
 function setAuthStatus(msg, cls){
@@ -642,13 +649,17 @@ function setAuthStatus(msg, cls){
 async function submitAuth(){
   const email = document.getElementById('auth-email').value.trim();
   const password = document.getElementById('auth-password').value;
+  const name = document.getElementById('auth-name').value.trim();
   if(!email || !password){ setAuthStatus('Email and password are required.', 'err'); return; }
+  if(authMode==='signup' && !name){ setAuthStatus('Please enter your name.', 'err'); return; }
   setAuthStatus(authMode==='signin' ? 'Logging in…' : 'Signing up…');
   if(authMode==='signin'){
     const { error } = await sb.auth.signInWithPassword({ email, password });
     if(error){ setAuthStatus(error.message, 'err'); return; }
   } else {
-    const { error } = await sb.auth.signUp({ email, password });
+    // Name is stored as Supabase auth user_metadata (raw_user_meta_data), not a new table —
+    // no RLS/schema change needed, and it's exposed back as session.user.user_metadata.full_name.
+    const { error } = await sb.auth.signUp({ email, password, options: { data: { full_name: name } } });
     if(error){ setAuthStatus(error.message, 'err'); return; }
     setAuthStatus('Check your inbox to confirm your account, then log in.', 'ok');
   }
@@ -676,6 +687,7 @@ async function submitNewPassword(){
   document.getElementById('recoverygate').style.display = 'none';
   document.getElementById('app').style.display = '';
   document.getElementById('whoami').textContent = session.user.email;
+  renderGreeting();
   loadAllData();
 }
 
@@ -692,6 +704,7 @@ sb.auth.onAuthStateChange((event, newSession)=>{
     document.getElementById('authgate').style.display = 'none';
     document.getElementById('app').style.display = '';
     document.getElementById('whoami').textContent = session.user.email;
+  renderGreeting();
     loadAllData();
   } else {
     trades = []; rules = emptyRules(); capital = emptyCapital();
@@ -774,6 +787,19 @@ function tickClock(){
   document.getElementById('clock').textContent = d.toLocaleString('en-IN', {dateStyle:'medium', timeStyle:'short'});
 }
 tickClock(); setInterval(tickClock, 30000);
+
+// Name comes from Supabase auth user_metadata (set at signup, see submitAuth()) — accounts
+// created before this round have none, so this falls back to the email's local part rather
+// than showing a blank/undefined name.
+function renderGreeting(){
+  const el = document.getElementById('greeting-bar');
+  if(!el || !session) return;
+  const hour = new Date().getHours();
+  const part = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  const name = (session.user.user_metadata && session.user.user_metadata.full_name) || session.user.email.split('@')[0];
+  el.textContent = `${part}, ${name}`;
+}
+setInterval(renderGreeting, 30000);
 
 // ---------- journal ----------
 function segClass(seg){
@@ -1814,25 +1840,34 @@ function renderSectorStrength(){
 // instead of fetching or storing anything new — a trading week is 5 trading days, so slicing
 // that same array in 5-day chunks from the end gives up to ~13 weekly buckets for free.
 // weeksBack=0 is the most recent 5 trading days ("This Week"), 1 is the 5 before that, etc.
-function computeWeeklyTopMovers(weeksBack){
-  if(!emaStateCache) return null;
+// Sector-level, not per-stock (changed this round, per request) — a sector's weekly return
+// is the average of its tracked constituents' weekly returns (same rsCloses 5-day-chunk
+// slicing as before, just aggregated by sectors.json's grouping instead of ranking individual
+// symbols). Needs both sectorsData (constituent lists) and emaStateCache (rsCloses).
+function computeWeeklySectorMovers(weeksBack){
+  if(!emaStateCache || !sectorsData) return null;
   const weeks = [];
   for(let w=0; w<weeksBack; w++){
-    const rets = [];
-    Object.keys(emaStateCache).forEach(sym=>{
-      const rc = emaStateCache[sym].rsCloses;
-      if(!Array.isArray(rc)) return;
-      const endIdx = rc.length - 1 - w*5;
-      const startIdx = endIdx - 5;
-      if(startIdx < 0 || !rc[startIdx]) return;
-      rets.push({ sym, ret: (rc[endIdx]-rc[startIdx])/rc[startIdx]*100 });
+    const sectorRets = [];
+    Object.keys(sectorsData).forEach(sector=>{
+      const rets = [];
+      sectorsData[sector].forEach(sym=>{
+        const st = emaStateCache[sym];
+        const rc = st && st.rsCloses;
+        if(!Array.isArray(rc)) return;
+        const endIdx = rc.length - 1 - w*5;
+        const startIdx = endIdx - 5;
+        if(startIdx < 0 || !rc[startIdx]) return;
+        rets.push((rc[endIdx]-rc[startIdx])/rc[startIdx]*100);
+      });
+      if(rets.length) sectorRets.push({ sector, ret: rets.reduce((a,b)=>a+b,0)/rets.length });
     });
-    if(!rets.length) continue; // not enough history yet for this far back — stop, don't show a gap
-    rets.sort((a,b)=>b.ret-a.ret);
+    if(!sectorRets.length) continue; // not enough history yet for this far back — stop, don't show a gap
+    sectorRets.sort((a,b)=>b.ret-a.ret);
     weeks.push({
       label: w===0 ? 'This Week' : w===1 ? 'Last Week' : `${w} Weeks Ago`,
-      top: rets.slice(0,2),
-      worst: rets.slice(-2).reverse()
+      top: sectorRets.slice(0,2),
+      worst: sectorRets.slice(-2).reverse()
     });
   }
   return weeks;
@@ -1840,7 +1875,7 @@ function computeWeeklyTopMovers(weeksBack){
 function renderWeeklyMovers(){
   const container = document.getElementById('weekly-movers-panel');
   if(!container) return; // not on the Market Regime view
-  const weeks = computeWeeklyTopMovers(3);
+  const weeks = computeWeeklySectorMovers(3);
   if(!weeks || !weeks.length){
     container.innerHTML = '<div class="empty">Needs a few more weeks of tracked history.</div>';
     return;
@@ -1849,8 +1884,8 @@ function renderWeeklyMovers(){
     <tr><th>Week</th><th>Top 2</th><th>Worst 2</th></tr>
     ${weeks.map(w=>`<tr>
       <td>${w.label}</td>
-      <td class="pos">${w.top.map(t=>`${t.sym} +${t.ret.toFixed(1)}%`).join(', ')}</td>
-      <td class="neg">${w.worst.map(t=>`${t.sym} ${t.ret.toFixed(1)}%`).join(', ')}</td>
+      <td class="pos">${w.top.map(t=>`${t.sector} +${t.ret.toFixed(1)}%`).join(', ')}</td>
+      <td class="neg">${w.worst.map(t=>`${t.sector} ${t.ret.toFixed(1)}%`).join(', ')}</td>
     </tr>`).join('')}
   </table>`;
 }
