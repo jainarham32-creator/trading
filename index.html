@@ -98,6 +98,7 @@
     border-radius:4px;
     padding:16px;
     margin-bottom:16px;
+    overflow-x:auto;
   }
   .panel h2{
     margin:0 0 12px 0;
@@ -238,6 +239,11 @@
   .thrust-pie-label{font-size:9px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;}
   .thrust-legend{font-size:12px; color:var(--text-dim); display:flex; flex-direction:column; gap:6px;}
   .thrust-legend b{color:var(--text);}
+  .exposure-card{border:1px solid var(--line); border-radius:4px; padding:10px 12px; margin-bottom:10px;}
+  .exposure-card-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .exposure-card-head .status{font-size:10px; text-transform:uppercase; letter-spacing:0.5px; font-weight:bold;}
+  .exposure-card-row{display:flex; justify-content:space-between; font-size:12px; color:var(--text-dim); margin-top:4px;}
+  .exposure-card-row b{color:var(--text); font-weight:normal;}
   .trade-book-list{max-height:520px; overflow-y:auto;}
   .trade-book-row{display:flex; align-items:center; justify-content:space-between; gap:6px; padding:6px 0; border-bottom:1px solid var(--line); cursor:pointer; font-size:12px;}
   .trade-book-row:hover{color:var(--amber);}
@@ -317,14 +323,15 @@
           <span>Regime Score</span><span class="chev">›</span>
         </div>
         <div class="side-body" id="regime-score-info-body">
-          <p><b>Thesis:</b> five inputs — volatility, market breadth, options positioning, new highs/lows, and the index's own trend — each scored 0-100 and weighted equally (20% each), averaged into one composite. A cross-check against your Playbook's setups, not a standalone signal. Shows "Scoring…" until every input for the day has arrived.</p>
-          <p><b>Criteria (each worth 20%):</b></p>
+          <p><b>Thesis:</b> seven inputs — volatility, short- and long-term breadth, options positioning, new highs/lows, the index's own trend, and today's live advance/decline — each scored 0-100 on a smooth sliding scale (not hard step bands) and weighted by how much they typically say about regime health, averaged into one composite. A cross-check against your Playbook's setups, not a standalone signal. Shows "Scoring…" until every input for the day has arrived.</p>
+          <p><b>Weighting:</b></p>
           <ul>
-            <li>VIX: &lt;14 → 100 · 14–20 → 66 · 20–25 → 33 · &gt;25 → 0</li>
-            <li>% of NIFTY 500 above 50 EMA: &lt;20 → 0 · 20–50 → 60 · 50–70 → 100 · &gt;70 → 40 (overbought)</li>
-            <li>PCR: ≤0.8 → 0, ≥1.2 → 100, sliding scale between</li>
-            <li>New Highs vs Lows (NIFTY 500, 52-week): highs&gt;lows → 100 · lows&gt;1.5×highs → 0 · else → 50</li>
-            <li>NIFTY 500 vs. its 20 EMA: above → 100 · within 2% below → 50 · &gt;2% below → 0</li>
+            <li>VIX (20%): 100 at ≤12 (calm), 0 at ≥28 (fearful), sliding scale between</li>
+            <li>% of NIFTY 500 above 50 EMA (15%) and above 200 EMA (15%): rises through 10–65%, eases back from 65–90% (overbought caution), flat 60 above that</li>
+            <li>PCR (15%): 0 at ≤0.7, 100 at ≥1.3, sliding scale between</li>
+            <li>New Highs vs Lows, NIFTY 500 252-day (15%): highs ÷ (highs+lows) × 100 — continuous, not just "which side wins"</li>
+            <li>NIFTY 500 vs. its 20 EMA (10%): 0 at 3% below, 100 at 3% above, sliding scale between</li>
+            <li>Market Thrust — today's live advance/decline (10%): kept modest since a single day is noisier than the structural factors above</li>
           </ul>
           <p>Score ≥ 65 → <span class="pos">Risk-On</span>. Score ≤ 35 → <span class="neg">Risk-Off</span>. Else Neutral.</p>
         </div>
@@ -382,6 +389,12 @@
           <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Live % of each sector index's constituents advancing today (falls back to % above 200-EMA as of last close if live data is unavailable).</div>
           <div id="sector-strength-panel"></div>
         </div>
+
+        <div class="panel">
+          <h2>Weekly Top / Worst Movers</h2>
+          <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Best/worst 2 NIFTY 500 names by trailing 5-trading-day return, last 3 weeks — same tracked universe as RS Rating.</div>
+          <div id="weekly-movers-panel"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -400,6 +413,10 @@
         <div class="side-row" id="playbook-row" onclick="openPlaybookModal()" style="border-top:1px solid var(--line);">
           <span>Playbook & Settings</span><span class="chev">›</span>
         </div>
+
+        <div class="side-row" id="closed-trades-row" onclick="openClosedTradesModal()">
+          <span>Closed Trades</span><span class="chev">›</span>
+        </div>
       </div>
 
       <div class="main-col">
@@ -412,11 +429,6 @@
           </div>
           <div class="summary-strip" id="journal-summary"></div>
           <div id="open-positions"></div>
-        </div>
-
-        <div class="panel">
-          <h2>Closed Trades</h2>
-          <div id="closed-trades"></div>
         </div>
       </div>
 
@@ -488,6 +500,16 @@
     <button class="ghost small" onclick="addSetupOptionRow()">+ Add Setup</button>
     <button onclick="saveSetupOptions()">Save Setups</button>
     <span class="save-note" id="setups-saved"></span>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="closed-trades-modal-backdrop" onclick="if(event.target===this) closeClosedTradesModal()">
+  <div class="panel modal-panel wide">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:12px;">
+      <h2 style="margin:0; border:none; padding:0;">Closed Trades</h2>
+      <button class="ghost small" onclick="closeClosedTradesModal()">Close</button>
+    </div>
+    <div id="closed-trades"></div>
   </div>
 </div>
 
@@ -592,6 +614,15 @@ function openPlaybookModal(){
 }
 function closePlaybookModal(){
   document.getElementById('playbook-modal-backdrop').classList.remove('active');
+}
+
+// Closed Trades' table (7 columns) is too wide for the 240px left panel to expand in place —
+// same reasoning as Playbook, reuses the same modal-backdrop pattern instead of an accordion.
+function openClosedTradesModal(){
+  document.getElementById('closed-trades-modal-backdrop').classList.add('active');
+}
+function closeClosedTradesModal(){
+  document.getElementById('closed-trades-modal-backdrop').classList.remove('active');
 }
 
 // ---------- auth ----------
@@ -791,7 +822,10 @@ function closeTradeModal(){
   editingTradeId = null;
 }
 document.addEventListener('keydown', e=>{
-  if(e.key==='Escape') closeTradeModal();
+  if(e.key!=='Escape') return;
+  closeTradeModal();
+  closePlaybookModal();
+  closeClosedTradesModal();
 });
 
 async function addTrade(){
@@ -1170,77 +1204,106 @@ function segmentCapital(segment){
   return (capital.total||0) * ((pct==null || pct===0 ? 100 : pct)/100);
 }
 
+// Short ₹ notation (L/Cr) — the old plain-digit table (6 columns of 7-digit numbers) was
+// too wide for the Journal tab's narrow right-hand column and got clipped off-page; compact
+// cards + short numbers fix that instead of just letting it scroll.
+function formatInrShort(n){
+  if(n==null || isNaN(n)) return '-';
+  const abs = Math.abs(n);
+  if(abs >= 1e7) return '₹'+(n/1e7).toFixed(2)+'Cr';
+  if(abs >= 1e5) return '₹'+(n/1e5).toFixed(2)+'L';
+  return '₹'+Math.round(n).toLocaleString('en-IN');
+}
 function renderExposure(){
   const segs = computeExposureBySegment();
-  let rows = '';
-  Object.keys(segs).forEach(seg=>{
+  const cards = Object.keys(segs).map(seg=>{
     const s = segs[seg];
     const segCap = segmentCapital(seg);
     const leverUsed = segCap ? (s.exp/segCap) : 0;
     const overCap = s.cap && leverUsed > s.cap;
-    rows += `<tr>
-      <td><span class="pill ${segClass(seg)}">${seg}</span></td>
-      <td>${s.exp.toFixed(0)}</td>
-      <td>${segCap.toFixed(0)}</td>
-      <td>${segCap ? leverUsed.toFixed(2)+'x' : '-'}</td>
-      <td>${s.cap ? s.cap+'x' : '-'}</td>
-      <td class="${overCap?'warn':'ok'}">${overCap ? 'OVER CAP' : 'OK'}</td>
-    </tr>`;
-  });
-  document.getElementById('exposure-table').innerHTML =
-    `<table><tr><th>Segment</th><th>Exposure (₹)</th><th>Allocated (₹)</th><th>Leverage Used</th><th>Cap</th><th>Status</th></tr>${rows}</table>` +
+    return `<div class="exposure-card">
+      <div class="exposure-card-head">
+        <span class="pill ${segClass(seg)}">${seg}</span>
+        <span class="status ${overCap?'warn':'ok'}">${overCap ? 'OVER CAP' : 'OK'}</span>
+      </div>
+      <div class="exposure-card-row"><span>Exposure</span><b>${formatInrShort(s.exp)} of ${formatInrShort(segCap)}</b></div>
+      <div class="exposure-card-row"><span>Leverage</span><b>${segCap ? leverUsed.toFixed(2)+'x' : '-'} (cap ${s.cap ? s.cap+'x' : '-'})</b></div>
+    </div>`;
+  }).join('');
+  document.getElementById('exposure-table').innerHTML = cards +
     `<div class="save-note">OVER CAP measures total notional stock value held vs. this segment's leverage cap — independent of the Journal's per-trade sizing flag, which measures stop-loss risk %. A segment can be OVER CAP (too much capital deployed) while every individual trade is still "undersized" (a small, safe stop) — that's not a contradiction, just two different risk dimensions.</div>`;
 }
 
 // ---------- market regime ----------
-// Regime Score v2 — 5 factors, weighted 20% each, averaged into a 0-100 composite.
-// See .claude/skills/nse-market-data/SKILL.md for the full rationale behind each band.
+// Regime Score v3 — 7 factors, weighted by how much each actually says about regime health
+// (not equal-weighted any more), each scored on a smooth 0-100 continuum instead of a few
+// hard step bands (fewer artificial jumps, more information in the composite). Two factors
+// are new this round: %-above-200-EMA (the data was already being collected for the chart,
+// just never fed into the score) and live Market Thrust (this round's live NSE data, kept at
+// a modest weight deliberately — a single day's advance/decline is noisier than the other,
+// more structural factors, so it nudges the score rather than dominating it).
+// See .claude/skills/nse-market-data/SKILL.md for the full rationale behind each weight/band.
 // Any missing factor makes the whole score null (rendered as "Scoring…") rather than
 // silently averaging over fewer inputs — a partial score would be misleading, not just approximate.
+const REGIME_WEIGHTS = { vix:20, breadth50:15, breadth200:15, pcr:15, highsLows:15, nifty500Ema20:10, thrust:10 };
+function clamp01to100(v){ return Math.max(0, Math.min(100, v)); }
 function vixFactor(vix){
   if(isNaN(vix)) return null;
-  if(vix < 14) return 100;
-  if(vix < 20) return 66;
-  if(vix < 25) return 33;
-  return 0;
+  // 100 at calm (<=12), 0 at fearful (>=28), straight line between — smoother than 4 hard steps
+  return clamp01to100(100 - (vix-12)/(28-12)*100);
 }
-function breadth50Factor(pct){
+// Shared by both %-above-50-EMA and %-above-200-EMA — same shape (rises through a healthy
+// mid-range, eases back down once deeply overbought), just applied to two different windows.
+function breadthFactor(pct){
   if(pct==null || isNaN(pct)) return null;
-  if(pct < 20) return 0;
-  if(pct <= 50) return 60;
-  if(pct <= 70) return 100;
-  return 40; // >70% above 50 EMA — overbought/extended, a caution flag not an all-clear
+  if(pct <= 10) return 0;
+  if(pct <= 65) return (pct-10)/(65-10)*100;
+  if(pct <= 90) return 100 - (pct-65)/(90-65)*40; // eases toward 60 — overbought, a caution not an all-clear
+  return 60;
 }
 function pcrFactor(pcr){
   if(pcr==null || isNaN(pcr)) return null;
-  if(pcr <= 0.8) return 0;
-  if(pcr >= 1.2) return 100;
-  return (pcr - 0.8) / (1.2 - 0.8) * 100;
+  if(pcr <= 0.7) return 0;
+  if(pcr >= 1.3) return 100;
+  return (pcr - 0.7) / (1.3 - 0.7) * 100;
 }
+// Continuous highs/lows ratio instead of a 3-value step — a 9-vs-1 day and a 6-vs-4 day used
+// to score identically (both "highs > lows" → 100); now they read as 90 and 60 respectively.
 function highsLowsFactor(newHighs, newLows){
   if(isNaN(newHighs) || isNaN(newLows)) return null;
-  if(newHighs > newLows) return 100;
-  if(newLows > newHighs * 1.5) return 0;
-  return 50;
+  const total = newHighs + newLows;
+  if(total === 0) return 50; // no new highs or lows either way — genuinely neutral, not missing data
+  return newHighs / total * 100;
 }
 function nifty500Ema20Factor(close, ema20){
   if(close==null || ema20==null || isNaN(close) || isNaN(ema20) || !ema20) return null;
   const pctDiff = (close - ema20) / ema20 * 100;
-  if(pctDiff > 0) return 100;
-  if(pctDiff >= -2) return 50;
-  return 0;
+  // 0 at -3% below, 100 at +3% above, straight line between, clamped past either end
+  return clamp01to100(50 + pctDiff/3*50);
+}
+// New this round — today's whole-market advance/decline (the same live NSE data Market
+// Thrust's pie chart shows), giving the score genuine intraday responsiveness alongside the
+// mostly-EOD-cadence factors above.
+function marketThrustFactor(advances, declines){
+  if(advances==null || declines==null || isNaN(advances) || isNaN(declines)) return null;
+  const total = advances + declines;
+  if(!total) return null;
+  return advances / total * 100;
 }
 function computeRegimeScore(s){
   const factors = {
     vix: vixFactor(s.vix),
-    breadth50: breadth50Factor(s.pctAbove50Ema),
+    breadth50: breadthFactor(s.pctAbove50Ema),
+    breadth200: breadthFactor(s.pctAbove200Ema),
     pcr: pcrFactor(s.pcr),
     highsLows: highsLowsFactor(s.newHighs, s.newLows),
-    nifty500Ema20: nifty500Ema20Factor(s.nifty500Close, s.nifty500Ema20)
+    nifty500Ema20: nifty500Ema20Factor(s.nifty500Close, s.nifty500Ema20),
+    thrust: marketThrustFactor(s.thrustAdvances, s.thrustDeclines)
   };
-  const vals = Object.values(factors);
-  if(vals.some(v=>v==null)) return { score:null, label:null, factors };
-  const score = Math.round(vals.reduce((a,b)=>a+b,0) / vals.length);
+  if(Object.keys(REGIME_WEIGHTS).some(k=>factors[k]==null)) return { score:null, label:null, factors };
+  const totalWeight = Object.values(REGIME_WEIGHTS).reduce((a,b)=>a+b,0);
+  const weighted = Object.keys(REGIME_WEIGHTS).reduce((a,k)=>a+factors[k]*REGIME_WEIGHTS[k],0);
+  const score = Math.round(weighted / totalWeight);
   let label = 'Neutral';
   if(score >= 65) label = 'Risk-On';
   else if(score <= 35) label = 'Risk-Off';
@@ -1372,6 +1435,7 @@ function renderRegimeTab(){
   // Strength refresh on every live fetch, not just the "happy path" below.
   renderMarketThrust();
   renderSectorStrength();
+  renderWeeklyMovers();
   if(liveRegime.fetchError){
     document.getElementById('regime-statgrid').innerHTML = `<div class="empty">Could not reach /api/regime: ${liveRegime.fetchError}</div>`;
     document.getElementById('regime-fetched-label').textContent = '';
@@ -1385,13 +1449,15 @@ function renderRegimeTab(){
     return;
   }
   const pctAbove50Ema = breadthHistory[0] ? breadthHistory[0].pctAbove50Ema : null;
+  const pctAbove200Ema = breadthHistory[0] ? breadthHistory[0].pctAbove200Ema : null;
   const newHighsN500 = breadthHistory[0] ? breadthHistory[0].countNewHighN500 : null;
   const newLowsN500 = breadthHistory[0] ? breadthHistory[0].countNewLowN500 : null;
   const nifty500Ema20Today = computeNifty500Ema20Today();
   const scored = computeRegimeScore({
     vix: numOrNaN(liveRegime.vix), pcr: liveRegime.pcr ?? null,
     newHighs: numOrNaN(newHighsN500), newLows: numOrNaN(newLowsN500),
-    pctAbove50Ema, nifty500Close: liveRegime.nifty500Close ?? null, nifty500Ema20: nifty500Ema20Today
+    pctAbove50Ema, pctAbove200Ema, nifty500Close: liveRegime.nifty500Close ?? null, nifty500Ema20: nifty500Ema20Today,
+    thrustAdvances: liveRegime.thrustAdvances ?? null, thrustDeclines: liveRegime.thrustDeclines ?? null
   });
   document.getElementById('regime-fetched-label').textContent = liveRegime.fetchedAt ? ('Fetched at ' + new Date(liveRegime.fetchedAt).toLocaleTimeString('en-IN')) : '';
   const tile = (label, val, err) => `<div class="stat"><div class="num">${val==null?'-':(typeof val==='number'&&!Number.isInteger(val)?val.toFixed(2):val)}</div><div class="lbl">${label}${err?' <span class=\"flag\">'+err+'</span>':''}</div></div>`;
@@ -1430,13 +1496,15 @@ function renderRegimeTab(){
 async function autoSaveRegimeSnapshot(){
   const pcr = liveRegime.pcr ?? null;
   const pctAbove50Ema = breadthHistory[0] ? breadthHistory[0].pctAbove50Ema : null;
+  const pctAbove200Ema = breadthHistory[0] ? breadthHistory[0].pctAbove200Ema : null;
   const newHighsN500 = breadthHistory[0] ? breadthHistory[0].countNewHighN500 : null;
   const newLowsN500 = breadthHistory[0] ? breadthHistory[0].countNewLowN500 : null;
   const nifty500Ema20Today = computeNifty500Ema20Today();
   const scored = computeRegimeScore({
     vix: numOrNaN(liveRegime.vix), pcr,
     newHighs: numOrNaN(newHighsN500), newLows: numOrNaN(newLowsN500),
-    pctAbove50Ema, nifty500Close: liveRegime.nifty500Close ?? null, nifty500Ema20: nifty500Ema20Today
+    pctAbove50Ema, pctAbove200Ema, nifty500Close: liveRegime.nifty500Close ?? null, nifty500Ema20: nifty500Ema20Today,
+    thrustAdvances: liveRegime.thrustAdvances ?? null, thrustDeclines: liveRegime.thrustDeclines ?? null
   });
   const row = {
     user_id: session.user.id,
@@ -1740,6 +1808,52 @@ function renderSectorStrength(){
     </div>`;
   }).join('');
 }
+
+// ---------- weekly top/worst movers ----------
+// Reuses ema_state's rsCloses (66 trading days ≈ 3 months, already maintained for RS Rating)
+// instead of fetching or storing anything new — a trading week is 5 trading days, so slicing
+// that same array in 5-day chunks from the end gives up to ~13 weekly buckets for free.
+// weeksBack=0 is the most recent 5 trading days ("This Week"), 1 is the 5 before that, etc.
+function computeWeeklyTopMovers(weeksBack){
+  if(!emaStateCache) return null;
+  const weeks = [];
+  for(let w=0; w<weeksBack; w++){
+    const rets = [];
+    Object.keys(emaStateCache).forEach(sym=>{
+      const rc = emaStateCache[sym].rsCloses;
+      if(!Array.isArray(rc)) return;
+      const endIdx = rc.length - 1 - w*5;
+      const startIdx = endIdx - 5;
+      if(startIdx < 0 || !rc[startIdx]) return;
+      rets.push({ sym, ret: (rc[endIdx]-rc[startIdx])/rc[startIdx]*100 });
+    });
+    if(!rets.length) continue; // not enough history yet for this far back — stop, don't show a gap
+    rets.sort((a,b)=>b.ret-a.ret);
+    weeks.push({
+      label: w===0 ? 'This Week' : w===1 ? 'Last Week' : `${w} Weeks Ago`,
+      top: rets.slice(0,2),
+      worst: rets.slice(-2).reverse()
+    });
+  }
+  return weeks;
+}
+function renderWeeklyMovers(){
+  const container = document.getElementById('weekly-movers-panel');
+  if(!container) return; // not on the Market Regime view
+  const weeks = computeWeeklyTopMovers(3);
+  if(!weeks || !weeks.length){
+    container.innerHTML = '<div class="empty">Needs a few more weeks of tracked history.</div>';
+    return;
+  }
+  container.innerHTML = `<table style="font-size:11px;">
+    <tr><th>Week</th><th>Top 2</th><th>Worst 2</th></tr>
+    ${weeks.map(w=>`<tr>
+      <td>${w.label}</td>
+      <td class="pos">${w.top.map(t=>`${t.sym} +${t.ret.toFixed(1)}%`).join(', ')}</td>
+      <td class="neg">${w.worst.map(t=>`${t.sym} ${t.ret.toFixed(1)}%`).join(', ')}</td>
+    </tr>`).join('')}
+  </table>`;
+}
 fetch('/sectors.json').then(r=>r.json()).then(d=>{ sectorsData = d; renderSectorStrength(); }).catch(()=>{ /* panel just shows "Loading…" indefinitely — non-critical, static asset */ });
 fetch('/fo_universe.json').then(r=>r.json()).then(d=>{ fnoUniverse = new Set(d); renderSectorStrength(); }).catch(()=>{ /* F&O badges just never show — non-critical, static asset */ });
 
@@ -1908,6 +2022,7 @@ async function afterBreadthUpdate(){
     emaStateCache = stateRow ? stateRow.state : {};
   }
   renderSectorStrength();
+  renderWeeklyMovers();
   if(!liveRegime.fetchError && !liveRegime.marketClosed && liveRegime.vix!==undefined) renderRegimeTab();
   await maybeAutoSaveRegime();
 }
