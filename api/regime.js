@@ -79,11 +79,36 @@ function parseIndexClose(text, indexName) {
   return null;
 }
 
+// Same 14 sectors as sectors.json, mapped to their live indexSymbol in allIndices — verified
+// live 2026-07-30 (e.g. NIFTY AUTO showed advances:13/declines:2, matching sectors.json's
+// 15 Auto constituents). NSE's allIndices response carries per-index advances/declines/
+// unchanged counts that update throughout the trading day (not an EOD-only file like the
+// bhavcopy), which is what makes Sector Strength and Market Thrust genuinely live instead
+// of only updating once the bhavcopy is published in the evening.
+const SECTOR_INDEX_MAP = {
+  'Auto': 'NIFTY AUTO', 'Bank': 'NIFTY BANK', 'PSU Bank': 'NIFTY PSU BANK',
+  'Realty': 'NIFTY REALTY', 'Metal': 'NIFTY METAL', 'Energy': 'NIFTY ENERGY',
+  'FMCG': 'NIFTY FMCG', 'IT': 'NIFTY IT', 'Media': 'NIFTY MEDIA',
+  'Commodities': 'NIFTY COMMODITIES', 'Consumption': 'NIFTY CONSUMPTION',
+  'CPSE': 'NIFTY CPSE', 'Oil & Gas': 'NIFTY OIL AND GAS', 'Pharma': 'NIFTY PHARMA',
+};
+
 module.exports = async (req, res) => {
-  const [vix, fiidii, pcr, nifty500] = await Promise.all([
+  const [indices, fiidii, pcr, nifty500] = await Promise.all([
     safeFetch('https://www.nseindia.com/api/allIndices', j => {
-      const row = (j.data || []).find(x => x.indexSymbol === 'INDIA VIX' || x.index === 'INDIA VIX');
-      return row ? parseFloat(row.last) : null;
+      const rows = j.data || [];
+      const find = sym => rows.find(x => x.indexSymbol === sym || x.index === sym);
+      const vixRow = find('INDIA VIX');
+      const vix = vixRow ? parseFloat(vixRow.last) : null;
+      const n500Row = find('NIFTY 500');
+      const thrust = n500Row ? { advances: parseInt(n500Row.advances, 10), declines: parseInt(n500Row.declines, 10) } : null;
+      const sectors = {};
+      Object.keys(SECTOR_INDEX_MAP).forEach(name => {
+        const row = find(SECTOR_INDEX_MAP[name]);
+        if (row) sectors[name] = { advances: parseInt(row.advances, 10), declines: parseInt(row.declines, 10) };
+      });
+      if (vix == null && !thrust && Object.keys(sectors).length === 0) return null;
+      return { vix, thrust, sectors };
     }),
     safeFetch('https://www.nseindia.com/api/fiidiiTradeReact', j => {
       const arr = Array.isArray(j) ? j : [];
@@ -126,8 +151,13 @@ module.exports = async (req, res) => {
 
   res.status(200).json({
     fetchedAt: new Date().toISOString(),
-    vix: vix.value ?? null,
-    vixError: vix.error ?? null,
+    vix: indices.value ? indices.value.vix : null,
+    vixError: indices.error ?? null,
+    thrustAdvances: indices.value && indices.value.thrust ? indices.value.thrust.advances : null,
+    thrustDeclines: indices.value && indices.value.thrust ? indices.value.thrust.declines : null,
+    thrustError: indices.error ?? null,
+    sectorAdvDecl: indices.value ? indices.value.sectors : null,
+    sectorAdvDeclError: indices.error ?? null,
     fiiNet: fiidii.value ? fiidii.value.fiiNet : null,
     diiNet: fiidii.value ? fiidii.value.diiNet : null,
     fiiDiiDate: fiidii.value ? fiidii.value.date : null,
