@@ -3,7 +3,8 @@
 -- If a project already has these tables with data, do NOT run this file — use the incremental
 -- migration files in this folder instead (migration_002_setup_regime_sizing.sql,
 -- migration_003_ema_breadth.sql, migration_004_segment_alloc_and_breadth_extras.sql,
--- migration_005_indexfuture_and_nifty500ema.sql, migration_006_newhighs_advdecl.sql),
+-- migration_005_indexfuture_and_nifty500ema.sql, migration_006_newhighs_advdecl.sql,
+-- migration_007_watchlist.sql),
 -- which are additive (ALTER TABLE ADD COLUMN IF NOT EXISTS / CREATE TABLE IF NOT EXISTS)
 -- and safe to re-run.
 
@@ -130,6 +131,13 @@ create table public.market_breadth_history (
 );
 create index market_breadth_history_user_date_idx on public.market_breadth_history(user_id, snapshot_date desc);
 
+-- ---------- watchlist (Stocks tab's "My Watchlist" panel) ----------
+create table public.watchlist (
+  user_id    uuid primary key references auth.users(id) on delete cascade,
+  symbols    jsonb not null default '[]'::jsonb,  -- ["RELIANCE","TCS",...]
+  updated_at timestamptz not null default now()
+);
+
 -- ---------- Row Level Security: every table, same 4-policy pattern ----------
 alter table public.trades                enable row level security;
 alter table public.rules                 enable row level security;
@@ -137,6 +145,7 @@ alter table public.capital               enable row level security;
 alter table public.market_regime         enable row level security;
 alter table public.ema_state             enable row level security;
 alter table public.market_breadth_history enable row level security;
+alter table public.watchlist             enable row level security;
 
 create policy "trades_select_own" on public.trades
   for select using (auth.uid() = user_id);
@@ -190,4 +199,13 @@ create policy "market_breadth_history_insert_own" on public.market_breadth_histo
 create policy "market_breadth_history_update_own" on public.market_breadth_history
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "market_breadth_history_delete_own" on public.market_breadth_history
+  for delete using (auth.uid() = user_id);
+
+create policy "watchlist_select_own" on public.watchlist
+  for select using (auth.uid() = user_id);
+create policy "watchlist_insert_own" on public.watchlist
+  for insert with check (auth.uid() = user_id);
+create policy "watchlist_update_own" on public.watchlist
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "watchlist_delete_own" on public.watchlist
   for delete using (auth.uid() = user_id);

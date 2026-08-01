@@ -217,8 +217,8 @@
   .paged-layout.regime-layout{grid-template-columns:240px 1fr 460px;}
   .paged-layout.regime-layout.no-left{grid-template-columns:1fr 460px;}
   .paged-layout.journal-layout{grid-template-columns:240px 1fr 340px;}
-  .paged-layout.stocks-layout{grid-template-columns:320px 1fr;}
-  @media (max-width:1200px){.paged-layout.regime-layout{grid-template-columns:240px 1fr 340px;} .paged-layout.regime-layout.no-left{grid-template-columns:1fr 340px;}}
+  .paged-layout.stocks-layout{grid-template-columns:320px 1fr 260px;}
+  @media (max-width:1200px){.paged-layout.regime-layout{grid-template-columns:240px 1fr 340px;} .paged-layout.regime-layout.no-left{grid-template-columns:1fr 340px;} .paged-layout.stocks-layout{grid-template-columns:280px 1fr 220px;}}
   @media (max-width:1100px){.paged-layout.journal-layout{grid-template-columns:240px 1fr 280px;}}
   @media (max-width:900px){.paged-layout, .paged-layout.regime-layout, .paged-layout.journal-layout, .paged-layout.stocks-layout{grid-template-columns:1fr;}}
   .info-icon{cursor:pointer; color:var(--text-dim); font-size:11px; margin-left:3px;}
@@ -526,6 +526,22 @@
           <div id="stock-table"></div>
         </div>
       </div>
+
+      <div>
+        <div class="panel">
+          <h2>My Watchlist</h2>
+          <div style="display:flex; gap:6px; margin-bottom:10px;">
+            <input id="watchlist-input" list="instrument-list" placeholder="e.g. RELIANCE" style="margin-top:0;" onkeydown="if(event.key==='Enter') addToWatchlist();">
+            <button class="small" style="margin-top:0; flex-shrink:0;" onclick="addToWatchlist()">Add</button>
+          </div>
+          <div id="watchlist-panel"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Watchlist News</h2>
+          <div id="watchlist-news-panel"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -795,7 +811,7 @@ sb.auth.onAuthStateChange((event, newSession)=>{
   renderGreeting();
     loadAllData();
   } else {
-    trades = []; rules = emptyRules(); capital = emptyCapital();
+    trades = []; rules = emptyRules(); capital = emptyCapital(); watchlist = [];
     document.getElementById('app').style.display = 'none';
     document.getElementById('recoverygate').style.display = 'none';
     document.getElementById('authgate').style.display = '';
@@ -843,12 +859,13 @@ async function loadAllData(){
   document.getElementById('open-positions').innerHTML = '<div class="empty">Loading…</div>';
   document.getElementById('closed-trades').innerHTML = '<div class="empty">Loading…</div>';
   document.getElementById('exposure-table').innerHTML = '<div class="empty">Loading…</div>';
-  await Promise.all([fetchTrades(), fetchRules(), fetchCapital(), fetchLatestRegime()]);
+  await Promise.all([fetchTrades(), fetchRules(), fetchCapital(), fetchLatestRegime(), fetchWatchlist()]);
   renderJournal(); // also renders Exposure — the two share one tab now
   renderRules();
   renderSetupOptions();
   populateSetupDropdown();
   loadCapitalForm();
+  renderWatchlist();
   // Market Regime is the default landing tab, but its own data-loading is otherwise only
   // wired to the tab-click handler below — without this it would never fire on first login,
   // only after clicking away and back. Trigger it here for whichever tab starts active.
@@ -1535,6 +1552,30 @@ setInterval(()=>{
   if(view === 'regime' || view === 'stocks') fetchRegimeLive();
 }, 60000);
 
+// Ensures the day's data is fresh once market opens even if the user is parked on Journal
+// (not Regime/Stocks) when 9:15 IST arrives, or has had the tab open since before then —
+// checked every 60s alongside the interval above, regardless of which tab is active.
+// Genuine limitation, not a cron: this only fires while a browser tab has the app open —
+// there's no server-side scheduled job (would need a service_role key / stored credential,
+// which this app deliberately never uses, see nse-market-data skill).
+const MARKET_OPEN_HOUR = 9, MARKET_OPEN_MIN = 15;
+function nowInIST(){
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone:'Asia/Kolkata', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false }).formatToParts(new Date());
+  const get = t => parts.find(p=>p.type===t).value;
+  return { dateKey: `${get('year')}-${get('month')}-${get('day')}`, hour: parseInt(get('hour'),10)%24, minute: parseInt(get('minute'),10) };
+}
+let marketOpenRefreshDoneForDate = null;
+function maybeAutoRefreshAtMarketOpen(){
+  if(!session || isWeekendToday()) return;
+  const { dateKey, hour, minute } = nowInIST();
+  const pastOpen = hour > MARKET_OPEN_HOUR || (hour===MARKET_OPEN_HOUR && minute>=MARKET_OPEN_MIN);
+  if(!pastOpen || marketOpenRefreshDoneForDate === dateKey) return;
+  marketOpenRefreshDoneForDate = dateKey;
+  fetchRegimeLive();
+  updateBreadthIfNeeded();
+}
+setInterval(maybeAutoRefreshAtMarketOpen, 60000);
+
 // The score needs liveRegime (VIX/PCR/highs-lows/NIFTY500 close, one fetch) AND
 // breadthHistory[0] (% above 50 EMA, a separate daily pipeline) AND currentRegime's prior
 // nifty500Ema20 — these arrive from independent async chains with no ordering guarantee,
@@ -2049,13 +2090,15 @@ function renderFearGreed(){
 let newsData = null;
 async function fetchNews(){
   try {
-    const r = await fetch('/api/news');
+    const qs = watchlist.length ? '?watchlist=' + encodeURIComponent(watchlist.join(',')) : '';
+    const r = await fetch('/api/news' + qs);
     newsData = await r.json();
   } catch(e) {
     newsData = { fetchError: e.message || String(e) };
   }
   renderNewsPanel();
   renderTrendingPanel();
+  renderWatchlistNews();
 }
 function renderNewsList(items, err){
   if(err) return `<div class="empty">${escapeHtml(err)}</div>`;
@@ -2090,6 +2133,51 @@ function renderTrendingPanel(){
   container.innerHTML = newsData.trending.slice(0,8).map(t=>`
     <div class="trend-row"><span>${escapeHtml(t.title)}</span><span style="color:var(--text-dim);">${escapeHtml(t.traffic)}</span></div>
   `).join('');
+}
+
+// ---------- watchlist ----------
+// One row per user, jsonb array of symbols (same shape as rules.setup_options) — feeds
+// api/news.js's watchlist query param so the news panel stays scoped to what's actually
+// added, and re-fetches immediately on add/remove rather than waiting for next tab-open.
+let watchlist = [];
+async function fetchWatchlist(){
+  const { data } = await sb.from('watchlist').select('symbols').eq('user_id', session.user.id).maybeSingle();
+  watchlist = (data && Array.isArray(data.symbols)) ? data.symbols : [];
+}
+async function saveWatchlist(){
+  const { error } = await sb.from('watchlist').upsert({ user_id: session.user.id, symbols: watchlist }, { onConflict: 'user_id' });
+  if(error){ alert('Could not save watchlist: '+error.message); return false; }
+  return true;
+}
+async function addToWatchlist(){
+  const input = document.getElementById('watchlist-input');
+  const sym = input.value.trim().toUpperCase();
+  if(!sym) return;
+  input.value = '';
+  if(watchlist.includes(sym)) return;
+  watchlist.push(sym);
+  renderWatchlist();
+  if(await saveWatchlist()) fetchNews();
+}
+async function removeFromWatchlist(sym){
+  watchlist = watchlist.filter(s=>s!==sym);
+  renderWatchlist();
+  if(await saveWatchlist()) fetchNews();
+}
+function renderWatchlist(){
+  const container = document.getElementById('watchlist-panel');
+  if(!container) return; // not on the Stocks view
+  container.innerHTML = watchlist.length ? watchlist.map(sym=>`
+    <div class="trend-row"><span>${escapeHtml(sym)}</span><button class="ghost small" style="margin:0; padding:1px 6px;" onclick="removeFromWatchlist('${escapeHtml(sym).replace(/'/g,"\\'")}')">×</button></div>
+  `).join('') : '<div class="empty">No stocks added yet.</div>';
+}
+function renderWatchlistNews(){
+  const container = document.getElementById('watchlist-news-panel');
+  if(!container) return; // not on the Stocks view
+  if(!watchlist.length){ container.innerHTML = '<div class="empty">Add a stock above to see news for it.</div>'; return; }
+  if(!newsData){ container.innerHTML = '<div class="empty">Loading…</div>'; return; }
+  if(newsData.fetchError){ container.innerHTML = `<div class="empty">Could not reach /api/news: ${escapeHtml(newsData.fetchError)}</div>`; return; }
+  container.innerHTML = renderNewsList(newsData.watchlistNews, newsData.watchlistNewsError);
 }
 
 // Stock table — Name / Mcap / RS Score / Volume Deviation, all computed client-side from
