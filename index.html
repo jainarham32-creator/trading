@@ -479,7 +479,10 @@
         <div class="panel">
           <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:12px;">
             <h2 style="margin:0; border:none; padding:0;">Open Positions</h2>
-            <button class="small" onclick="openTradeModal()">+ Enter a Trade</button>
+            <div>
+              <button class="ghost small" onclick="openScreenshotModal()">📷 Upload Screenshot</button>
+              <button class="small" onclick="openTradeModal()">+ Enter a Trade</button>
+            </div>
           </div>
           <div class="summary-strip" id="journal-summary"></div>
           <div id="open-positions"></div>
@@ -619,6 +622,7 @@
 <div class="modal-backdrop" id="trade-modal-backdrop" onclick="if(event.target===this) closeTradeModal()">
   <div class="panel modal-panel">
     <h2 id="trade-modal-title">Log a Trade</h2>
+    <div class="save-note" id="trade-modal-ocr-hint" style="margin-bottom:6px;"></div>
     <div class="row3">
       <div><label>Segment</label>
         <select id="f-segment">
@@ -660,9 +664,37 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="screenshot-modal-backdrop" onclick="if(event.target===this) closeScreenshotModal()">
+  <div class="panel modal-panel wide">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:12px;">
+      <h2 style="margin:0; border:none; padding:0;">Upload Screenshot</h2>
+      <button class="ghost small" onclick="closeScreenshotModal()">Close</button>
+    </div>
+    <div class="save-note" style="margin-bottom:10px;">
+      Free, on-device text recognition (runs in your browser, no account/cost) — but genuinely
+      unreliable on a tabular broker screenshot. It's decent at spotting stock symbols; treat
+      any numbers it finds as a reference to copy from, not something to trust blindly. Nothing
+      is saved until you review and submit the trade form yourself.
+    </div>
+    <input type="file" id="screenshot-file-input" accept="image/*" onchange="handleScreenshotUpload(event)">
+    <div id="screenshot-status" class="save-note" style="margin-top:8px;"></div>
+    <div id="screenshot-preview" style="margin-top:10px;"></div>
+    <div id="screenshot-candidates" style="margin-top:14px;"></div>
+    <div style="margin-top:14px;">
+      <div class="side-row" id="screenshot-raw-row" onclick="toggleSideRow('screenshot-raw')" style="margin-top:0;">
+        <span>Raw extracted text</span><span class="chev">›</span>
+      </div>
+      <div class="side-body" id="screenshot-raw-body">
+        <pre id="screenshot-raw-text" style="white-space:pre-wrap; font-size:11px; color:var(--text-dim); max-height:200px; overflow-y:auto; margin:0;"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 // ---------- supabase ----------
@@ -924,6 +956,7 @@ function clearTradeForm(){
   document.getElementById('f-segment').value = 'Equity Cash';
   document.getElementById('f-direction').value = 'Long';
   document.getElementById('f-marketcap').value = 'Large Cap';
+  document.getElementById('trade-modal-ocr-hint').textContent = '';
 }
 function openTradeModal(id){
   editingTradeId = id || null;
@@ -956,11 +989,91 @@ function closeTradeModal(){
   document.getElementById('trade-modal-backdrop').classList.remove('active');
   editingTradeId = null;
 }
+
+// ---------- screenshot upload (free, on-device OCR — no API key, no cost) ----------
+// Tesseract.js reads whatever text it can find in the image; unlike a paid vision-LLM
+// approach (the alternative the user was offered and declined), plain OCR on a tabular
+// broker screenshot can't reliably tell which column a number belongs to — so this only
+// tries to confidently auto-detect the STOCK SYMBOL per line (matched against the same
+// known NIFTY 500 + index symbol set used for the Instrument autocomplete) and surfaces
+// the raw numbers found on that line as a copy-from reference, never auto-assigned to
+// Entry/Qty/SL. Nothing is ever saved without the user reviewing/submitting the trade form.
+let screenshotCandidates = [];
+function openScreenshotModal(){
+  document.getElementById('screenshot-file-input').value = '';
+  document.getElementById('screenshot-status').textContent = '';
+  document.getElementById('screenshot-preview').innerHTML = '';
+  document.getElementById('screenshot-candidates').innerHTML = '';
+  document.getElementById('screenshot-raw-text').textContent = '';
+  document.getElementById('screenshot-raw-body').classList.remove('open');
+  document.getElementById('screenshot-raw-row').classList.remove('open');
+  screenshotCandidates = [];
+  document.getElementById('screenshot-modal-backdrop').classList.add('active');
+}
+function closeScreenshotModal(){
+  document.getElementById('screenshot-modal-backdrop').classList.remove('active');
+}
+function detectSymbolCandidates(rawText){
+  const lines = rawText.split('\n').map(l=>l.trim()).filter(Boolean);
+  const candidates = [];
+  lines.forEach(line=>{
+    const tokens = line.split(/\s+/).map(t=>t.replace(/[^A-Za-z0-9&-]/g,'').toUpperCase());
+    const matchedSymbol = tokens.find(t=>t.length>=2 && knownSymbolSet.has(t));
+    if(!matchedSymbol) return;
+    const numbers = (line.match(/-?\d[\d,]*\.?\d*/g) || []).map(n=>n.replace(/,/g,''));
+    candidates.push({ symbol: matchedSymbol, numbers });
+  });
+  return candidates;
+}
+function renderScreenshotCandidates(){
+  const container = document.getElementById('screenshot-candidates');
+  if(!screenshotCandidates.length){
+    container.innerHTML = '<div class="empty">No recognizable symbols found — check the raw text below and enter the trade manually.</div>';
+    return;
+  }
+  container.innerHTML = '<div class="save-note" style="margin-bottom:6px;">Detected possible positions — click one to start a trade pre-filled with that symbol:</div>' +
+    screenshotCandidates.map((c,i)=>`
+      <div class="trade-book-row" onclick="useScreenshotCandidate(${i})">
+        <span><b>${escapeHtml(c.symbol)}</b> <span style="color:var(--text-dim)">— numbers on this line: ${c.numbers.length ? c.numbers.map(escapeHtml).join(', ') : 'none found'}</span></span>
+        <span style="color:var(--amber)">Use →</span>
+      </div>
+    `).join('');
+}
+function useScreenshotCandidate(i){
+  const c = screenshotCandidates[i];
+  if(!c) return;
+  closeScreenshotModal();
+  openTradeModal();
+  document.getElementById('f-instrument').value = c.symbol;
+  document.getElementById('trade-modal-ocr-hint').textContent = c.numbers.length
+    ? `OCR found these numbers on the matching line: ${c.numbers.join(', ')} — verify against your screenshot before filling Entry/Qty/SL/Target, the column order isn't detected.`
+    : 'Symbol matched from the screenshot — no numbers found on that line, fill in the rest manually.';
+}
+async function handleScreenshotUpload(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('screenshot-status');
+  document.getElementById('screenshot-preview').innerHTML = `<img src="${URL.createObjectURL(file)}" style="max-width:100%; max-height:220px; border:1px solid var(--line); border-radius:4px;">`;
+  document.getElementById('screenshot-candidates').innerHTML = '';
+  document.getElementById('screenshot-raw-text').textContent = '';
+  statusEl.textContent = 'Reading image… (runs in your browser, can take 10–30s)';
+  try {
+    const result = await Tesseract.recognize(file, 'eng');
+    const rawText = (result.data && result.data.text) || '';
+    document.getElementById('screenshot-raw-text').textContent = rawText.trim() || '(no text found)';
+    screenshotCandidates = detectSymbolCandidates(rawText);
+    renderScreenshotCandidates();
+    statusEl.textContent = `Done — found ${screenshotCandidates.length} possible position${screenshotCandidates.length===1?'':'s'}.`;
+  } catch(e){
+    statusEl.textContent = 'Could not read the image: ' + (e.message || e);
+  }
+}
 document.addEventListener('keydown', e=>{
   if(e.key!=='Escape') return;
   closeTradeModal();
   closePlaybookModal();
   closeClosedTradesModal();
+  closeScreenshotModal();
 });
 
 async function addTrade(){
@@ -2426,8 +2539,13 @@ const INDEX_SYMBOLS = [
   {symbol:'MIDCPNIFTY', name:'Nifty Midcap Select Index'},
   {symbol:'SENSEX', name:'BSE Sensex Index'}
 ];
+// Shared with the screenshot-upload OCR feature (detectSymbolCandidates()) — the same known-
+// symbol list backing the Instrument autocomplete is the most reliable thing to pattern-match
+// OCR text against.
+let knownSymbolSet = new Set(INDEX_SYMBOLS.map(s=>s.symbol));
 function populateInstrumentList(stockList){
   const all = INDEX_SYMBOLS.concat(stockList || []);
+  knownSymbolSet = new Set(all.map(s=>s.symbol));
   document.getElementById('instrument-list').innerHTML =
     all.map(s=>`<option value="${s.symbol}">${s.name}</option>`).join('');
 }
