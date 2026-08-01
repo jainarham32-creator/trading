@@ -711,6 +711,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://s3.tradingview.com/tv.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 // ---------- supabase ----------
@@ -1235,6 +1236,13 @@ function tradingViewSymbol(instrument){
   const sym = (instrument||'').trim().toUpperCase();
   return TV_INDEX_SYMBOL_MAP[sym] || ('NSE:' + sym);
 }
+// Uses TradingView's official tv.js widget constructor (script tag loaded alongside the
+// other CDN scripts) rather than a hand-built iframe URL — verified the hard way: a manually
+// constructed `widgetembed` URL (even copied byte-for-byte from tv.js's own generated iframe
+// src) shows "This symbol doesn't exist" when hit directly, because the widget validates the
+// embedding page's referrer/context; only the real `new TradingView.widget({...})` call from
+// within an actual embedding page satisfies that. Confirmed separately that NSE:RELIANCE is a
+// real, live-tracked TradingView symbol (checked tradingview.com/chart directly).
 function renderPositionCharts(){
   const container = document.getElementById('position-charts');
   if(!container) return; // not on the Journal view
@@ -1244,13 +1252,24 @@ function renderPositionCharts(){
     return;
   }
   const theme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
-  container.innerHTML = `<div class="position-charts-grid">${open.map(t=>{
-    const tvSym = tradingViewSymbol(t.instrument);
-    return `<div class="position-chart-card">
+  container.innerHTML = `<div class="position-charts-grid">${open.map((t,i)=>`
+    <div class="position-chart-card">
       <div class="position-chart-title">${escapeHtml(t.instrument)} <span style="text-transform:none; font-weight:normal;">(${escapeHtml(t.segment)})</span></div>
-      <iframe src="https://www.tradingview.com/widgetembed/?symbol=${encodeURIComponent(tvSym)}&interval=15&theme=${theme}&style=1&hide_top_toolbar=0&hide_legend=0&saveimage=0" width="100%" height="260" frameborder="0" loading="lazy"></iframe>
-    </div>`;
-  }).join('')}</div>`;
+      <div id="tv-chart-${i}" style="height:260px;"></div>
+    </div>
+  `).join('')}</div>`;
+  if(typeof TradingView === 'undefined') return; // CDN script blocked/slow — cards stay empty rather than erroring
+  open.forEach((t,i)=>{
+    new TradingView.widget({
+      container_id: `tv-chart-${i}`,
+      autosize: true,
+      symbol: tradingViewSymbol(t.instrument),
+      interval: '15',
+      timezone: 'Asia/Kolkata',
+      theme, style: '1', locale: 'en',
+      hide_top_toolbar: false, hide_legend: false, save_image: false, allow_symbol_change: false,
+    });
+  });
 }
 
 function renderJournal(){
