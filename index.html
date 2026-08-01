@@ -215,11 +215,14 @@
   .setup-row input{margin-top:0;}
   .paged-layout{display:grid; grid-template-columns:240px 1fr; gap:16px;}
   .paged-layout.regime-layout{grid-template-columns:240px 1fr 460px;}
+  .paged-layout.regime-layout.no-left{grid-template-columns:1fr 460px;}
   .paged-layout.journal-layout{grid-template-columns:240px 1fr 340px;}
   .paged-layout.stocks-layout{grid-template-columns:320px 1fr;}
-  @media (max-width:1200px){.paged-layout.regime-layout{grid-template-columns:240px 1fr 340px;}}
+  @media (max-width:1200px){.paged-layout.regime-layout{grid-template-columns:240px 1fr 340px;} .paged-layout.regime-layout.no-left{grid-template-columns:1fr 340px;}}
   @media (max-width:1100px){.paged-layout.journal-layout{grid-template-columns:240px 1fr 280px;}}
   @media (max-width:900px){.paged-layout, .paged-layout.regime-layout, .paged-layout.journal-layout, .paged-layout.stocks-layout{grid-template-columns:1fr;}}
+  .info-icon{cursor:pointer; color:var(--text-dim); font-size:11px; margin-left:3px;}
+  .info-icon:hover{color:var(--amber);}
   .stock-table-list{max-height:640px; overflow-y:auto;}
   .news-item{padding:6px 0; border-bottom:1px solid var(--line); font-size:12px;}
   .news-item a{color:var(--text); text-decoration:none;}
@@ -366,28 +369,7 @@
 
   <!-- MARKET REGIME -->
   <div class="view active" id="view-regime">
-    <div class="paged-layout regime-layout">
-      <div class="panel side-panel">
-        <h2>Display</h2>
-        <button class="ghost" onclick="toggleTheme()">🌓 Dark / Light</button>
-
-        <div class="side-row" id="regime-score-info-row" onclick="toggleSideRow('regime-score-info')">
-          <span>Regime Score</span><span class="chev">›</span>
-        </div>
-        <div class="side-body" id="regime-score-info-body">
-          <p><b>Thesis:</b> seven inputs — volatility, short- and long-term breadth, options positioning, new highs/lows, the index's own trend, and today's live advance/decline — each scored 0-100 on a smooth sliding scale (not hard step bands) and weighted by how much they typically say about regime health, averaged into one composite. A cross-check against your Playbook's setups, not a standalone signal. Shows "Scoring…" until every input for the day has arrived.</p>
-          <p><b>Weighting:</b></p>
-          <ul>
-            <li>VIX (20%): 100 at ≤12 (calm), 0 at ≥28 (fearful), sliding scale between</li>
-            <li>% of NIFTY 500 above 50 EMA (15%) and above 200 EMA (15%): rises through 10–65%, eases back from 65–90% (overbought caution), flat 60 above that</li>
-            <li>PCR (15%): 0 at ≤0.7, 100 at ≥1.3, sliding scale between</li>
-            <li>New Highs vs Lows, NIFTY 500 252-day (15%): highs ÷ (highs+lows) × 100 — continuous, not just "which side wins"</li>
-            <li>NIFTY 500 vs. its 20 EMA (10%): 0 at 3% below, 100 at 3% above, sliding scale between</li>
-            <li>Market Thrust — today's live advance/decline (10%): kept modest since a single day is noisier than the structural factors above</li>
-          </ul>
-          <p>Score ≥ 65 → <span class="pos">Risk-On</span>. Score ≤ 35 → <span class="neg">Risk-Off</span>. Else Neutral.</p>
-        </div>
-      </div>
+    <div class="paged-layout regime-layout no-left">
 
       <div class="main-col">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
@@ -396,6 +378,22 @@
             <div id="regime-fetched-label" style="font-size:11px; color:var(--text-dim);"></div>
             <button class="ghost small" onclick="fetchRegimeLive()" style="margin-top:0;">Refresh from NSE</button>
             <span class="save-note" id="regime-saved" style="margin-top:0;"></span>
+          </div>
+        </div>
+
+        <div class="side-body" id="regime-score-info-popup" style="margin-bottom:12px;">
+          <div class="panel">
+            <p><b>Thesis:</b> seven inputs — volatility, short- and long-term breadth, options positioning, new highs/lows, the index's own trend, and today's live advance/decline — each scored 0-100 on a smooth sliding scale (not hard step bands) and weighted by how much they typically say about regime health, averaged into one composite. A cross-check against your Playbook's setups, not a standalone signal. Shows "Scoring…" until every input for the day has arrived.</p>
+            <p><b>Weighting:</b></p>
+            <ul>
+              <li>VIX (20%): 100 at ≤12 (calm), 0 at ≥28 (fearful), sliding scale between</li>
+              <li>% of NIFTY 500 above 50 EMA (15%) and above 200 EMA (15%): rises through 10–65%, eases back from 65–90% (overbought caution), flat 60 above that</li>
+              <li>PCR (15%): 0 at ≤0.7, 100 at ≥1.3, sliding scale between</li>
+              <li>New Highs vs Lows, NIFTY 500 252-day (15%): highs ÷ (highs+lows) × 100 — continuous, not just "which side wins"</li>
+              <li>NIFTY 500 vs. its 20 EMA (10%): 0 at 3% below, 100 at 3% above, sliding scale between</li>
+              <li>Market Thrust — today's live advance/decline (10%): kept modest since a single day is noisier than the structural factors above</li>
+            </ul>
+            <p>Score ≥ 65 → <span class="pos">Risk-On</span>. Score ≤ 35 → <span class="neg">Risk-Off</span>. Else Neutral.</p>
           </div>
         </div>
 
@@ -429,6 +427,10 @@
       </div>
 
       <div>
+        <div style="text-align:right; margin-bottom:8px;">
+          <button class="ghost small" onclick="toggleTheme()" style="margin-top:0;">🌓 Theme</button>
+        </div>
+
         <div class="panel">
           <h2>Market Thrust</h2>
           <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Whole-market advance/decline, live during market hours (refreshes every ~60s and on "Refresh from NSE"; falls back to the last close if live data is unavailable).</div>
@@ -689,6 +691,13 @@ function toggleSideRow(id){
   const opening = !body.classList.contains('open');
   row.classList.toggle('open', opening);
   body.classList.toggle('open', opening);
+}
+// Regime Score's explanation used to live in a left-panel accordion — the left panel is
+// gone now (theme toggle and this both moved out), so it's a small (i) icon next to the
+// stat tile instead, toggling a panel right below the stat grid.
+function toggleRegimeInfo(e){
+  if(e) e.stopPropagation();
+  document.getElementById('regime-score-info-popup').classList.toggle('open');
 }
 
 // Playbook needs real editing room (multiple textareas + the setup-multiplier rows), which
@@ -1020,6 +1029,19 @@ function rMultiple(t){
   if(!risk) return null;
   return p / risk;
 }
+function inCurrentMonth(dateStr){
+  if(!dateStr) return false;
+  const d = new Date(dateStr), now = new Date();
+  return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
+}
+// Indian financial year: April 1 – March 31. "Current FY" starts this April 1 if we're
+// already past April, else last April 1.
+function inCurrentFY(dateStr){
+  if(!dateStr) return false;
+  const now = new Date();
+  const fyStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear()-1;
+  return new Date(dateStr) >= new Date(fyStartYear, 3, 1);
+}
 
 // ---------- position sizing suggestion ----------
 // Deviation thresholds (1.5x over / 0.5x under) are v1 code constants, not user-editable —
@@ -1106,15 +1128,15 @@ function renderJournal(){
   const closedWithPnl = closed.map(pnl).filter(p=>p!=null);
   const wins = closedWithPnl.filter(p=>p>0).length;
   const winRate = closedWithPnl.length ? (wins/closedWithPnl.length*100).toFixed(0)+'%' : '-';
-  const rVals = closed.map(rMultiple).filter(r=>r!=null);
-  const avgR = rVals.length ? (rVals.reduce((a,b)=>a+b,0)/rVals.length).toFixed(2) : '-';
-  const expectancy = rVals.length ? (rVals.reduce((a,b)=>a+b,0)/rVals.length).toFixed(2)+'R' : '-';
+  const pnlMonthly = closed.filter(t=>inCurrentMonth(t.exitDate)).map(pnl).filter(p=>p!=null).reduce((a,b)=>a+b,0);
+  const pnlFY = closed.filter(t=>inCurrentFY(t.exitDate)).map(pnl).filter(p=>p!=null).reduce((a,b)=>a+b,0);
+  const pnlTile = (val,label) => `<div class="stat"><div class="num ${val>=0?'pos':'neg'}">${val>=0?'+':'-'}${formatInrShort(Math.abs(val))}</div><div class="lbl">${label}</div></div>`;
 
   document.getElementById('statgrid').innerHTML = `
     <div class="stat"><div class="num">${trades.filter(t=>t.status==='open').length}</div><div class="lbl">Open Positions</div></div>
-    <div class="stat"><div class="num">${closed.length}</div><div class="lbl">Closed Trades</div></div>
+    ${pnlTile(pnlMonthly, 'P&L This Month')}
+    ${pnlTile(pnlFY, 'P&L This FY')}
     <div class="stat"><div class="num">${winRate}</div><div class="lbl">Win Rate</div></div>
-    <div class="stat"><div class="num">${expectancy}</div><div class="lbl">Expectancy</div></div>
   `;
 
   renderJournalSummary();
@@ -1589,9 +1611,10 @@ function renderRegimeTab(){
     const dir = known ? (val>=0 ? ' (Buy)' : ' (Sell)') : '';
     return `<div class="stat"><div class="num ${cls}">${known?val.toFixed(2):'-'}</div><div class="lbl">${label}${dir}${err?' <span class=\"flag\">'+err+'</span>':''}</div></div>`;
   };
+  const infoIcon = `<span class="info-icon" onclick="toggleRegimeInfo(event)" title="How this score is calculated">ⓘ</span>`;
   const scoreTile = scored.score==null
-    ? `<div class="stat"><div class="num">Scoring…</div><div class="lbl">Regime</div></div>`
-    : `<div class="stat"><div class="num ${scoreClass(scored.label)}">${scored.label}</div><div class="lbl">Regime (score ${scored.score})</div></div>`;
+    ? `<div class="stat"><div class="num">Scoring…</div><div class="lbl">Regime ${infoIcon}</div></div>`
+    : `<div class="stat"><div class="num ${scoreClass(scored.label)}">${scored.label}</div><div class="lbl">Regime (score ${scored.score}) ${infoIcon}</div></div>`;
   document.getElementById('regime-statgrid').innerHTML =
     tile('India VIX', liveRegime.vix, liveRegime.vixError) +
     flowTile('FII Net (₹cr)', liveRegime.fiiNet, liveRegime.fiiDiiError) +
