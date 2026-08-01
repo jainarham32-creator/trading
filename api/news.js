@@ -73,11 +73,28 @@ function parseTrendingItems(xml, limit) {
   return items;
 }
 
+// Builds a Google News OR-query from the user's watchlist (e.g. "RELIANCE OR TCS stock") —
+// only symbols that look like real tickers (letters/digits/&/- , max 20 chars) are kept, and
+// the list is capped at 15 so the query string can't be abused to fetch something arbitrary.
+function buildWatchlistQuery(raw) {
+  if (!raw) return null;
+  const symbols = String(raw).split(',')
+    .map(s => s.trim().toUpperCase())
+    .filter(s => /^[A-Z0-9&-]{1,20}$/.test(s))
+    .slice(0, 15);
+  if (!symbols.length) return null;
+  return symbols.join(' OR ') + ' stock';
+}
+
 module.exports = async (req, res) => {
-  const [indiaXml, worldXml, trendXml] = await Promise.all([
+  const watchlistQuery = buildWatchlistQuery(req.query && req.query.watchlist);
+  const [indiaXml, worldXml, trendXml, watchlistXml] = await Promise.all([
     safeFetchText('https://news.google.com/rss/search?q=indian%20stock%20market%20OR%20nifty%20OR%20sensex%20OR%20rbi&hl=en-IN&gl=IN&ceid=IN:en'),
     safeFetchText('https://news.google.com/rss/search?q=world%20markets%20OR%20global%20stocks%20OR%20federal%20reserve%20OR%20wall%20street&hl=en-US&gl=US&ceid=US:en'),
     safeFetchText('https://trends.google.com/trending/rss?geo=IN'),
+    watchlistQuery
+      ? safeFetchText(`https://news.google.com/rss/search?q=${encodeURIComponent(watchlistQuery)}&hl=en-IN&gl=IN&ceid=IN:en`)
+      : Promise.resolve({ value: null, error: null }),
   ]);
 
   res.status(200).json({
@@ -88,5 +105,7 @@ module.exports = async (req, res) => {
     worldNewsError: worldXml.error ?? null,
     trending: trendXml.value ? parseTrendingItems(trendXml.value, 10) : [],
     trendingError: trendXml.error ?? null,
+    watchlistNews: watchlistXml.value ? parseNewsItems(watchlistXml.value, 15) : [],
+    watchlistNewsError: watchlistQuery ? (watchlistXml.error ?? null) : null,
   });
 };
