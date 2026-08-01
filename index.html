@@ -217,8 +217,8 @@
   .paged-layout.regime-layout{grid-template-columns:240px 1fr 460px;}
   .paged-layout.regime-layout.no-left{grid-template-columns:1fr 460px;}
   .paged-layout.journal-layout{grid-template-columns:240px 1fr 340px;}
-  .paged-layout.stocks-layout{grid-template-columns:320px 1fr 260px;}
-  @media (max-width:1200px){.paged-layout.regime-layout{grid-template-columns:240px 1fr 340px;} .paged-layout.regime-layout.no-left{grid-template-columns:1fr 340px;} .paged-layout.stocks-layout{grid-template-columns:280px 1fr 220px;}}
+  .paged-layout.stocks-layout{grid-template-columns:320px 1fr 340px;}
+  @media (max-width:1200px){.paged-layout.regime-layout{grid-template-columns:240px 1fr 340px;} .paged-layout.regime-layout.no-left{grid-template-columns:1fr 340px;} .paged-layout.stocks-layout{grid-template-columns:280px 1fr 280px;}}
   @media (max-width:1100px){.paged-layout.journal-layout{grid-template-columns:240px 1fr 280px;}}
   @media (max-width:900px){.paged-layout, .paged-layout.regime-layout, .paged-layout.journal-layout, .paged-layout.stocks-layout{grid-template-columns:1fr;}}
   .info-icon{cursor:pointer; color:var(--text-dim); font-size:11px; margin-left:3px;}
@@ -229,14 +229,13 @@
   .news-item a:hover{color:var(--amber);}
   .news-item .src{color:var(--text-dim); font-size:10px; margin-top:2px;}
   .trend-row{display:flex; justify-content:space-between; font-size:12px; padding:3px 0;}
-  .paged-layout .main-col{max-width:960px;}
   .side-panel button{width:100%;}
-  .sector-bar-row{display:grid; grid-template-columns:130px 1fr 38px; align-items:center; gap:10px; margin-bottom:4px; cursor:pointer;}
+  .sector-bar-row{display:grid; grid-template-columns:140px 1fr 44px; align-items:center; gap:10px; margin-bottom:6px; cursor:pointer;}
   .sector-bar-row:hover .sector-bar-label{color:var(--amber);}
-  .sector-bar-label{font-size:12px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .sector-bar-track{background:var(--panel-2); border:1px solid var(--line); border-radius:2px; height:14px; overflow:hidden;}
+  .sector-bar-label{font-size:14px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .sector-bar-track{background:var(--panel-2); border:1px solid var(--line); border-radius:2px; height:16px; overflow:hidden;}
   .sector-bar-fill{height:100%;}
-  .sector-bar-pct{font-size:12px; color:var(--text-dim); text-align:right;}
+  .sector-bar-pct{font-size:14px; color:var(--text-dim); text-align:right;}
   .sector-detail{display:none; padding:2px 0 8px 0; margin-bottom:4px; border-bottom:1px solid var(--line);}
   .sector-detail.open{display:block;}
   .sector-detail-header{font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;}
@@ -523,7 +522,13 @@
       <div class="main-col">
         <div class="panel">
           <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:12px;">
-            <h2 style="margin:0; border:none; padding:0;">NIFTY 500 Stocks</h2>
+            <select id="stock-universe-select" onchange="renderStockTable()" style="margin-top:0; width:auto; font-weight:bold;">
+              <option value="All">NIFTY 500 (All)</option>
+              <option value="Nifty 50">NIFTY 50</option>
+              <option value="Nifty Next 50">NIFTY NEXT 50</option>
+              <option value="Nifty Midcap 150">NIFTY MIDCAP 150</option>
+              <option value="Nifty Smallcap 250">NIFTY SMALLCAP 250</option>
+            </select>
             <span class="save-note" id="stocks-freshness"></span>
           </div>
           <div id="stock-table"></div>
@@ -1732,6 +1737,12 @@ function scoreClass(label){
   return '';
 }
 
+// Weekday name for a plain 'YYYY-MM-DD' date string, interpreted in the viewer's local
+// calendar (not UTC-shifted) — used to label closed-market fallback data honestly ("showing
+// Friday's data") instead of a vague "last saved snapshot."
+function weekdayLabel(dateStr){
+  return new Date(dateStr+'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+}
 function renderRegimeTab(){
   // Both read liveRegime directly and degrade gracefully on their own (fetch error, market
   // closed, or data not arrived yet) — called unconditionally here so Market Thrust/Sector
@@ -1740,22 +1751,7 @@ function renderRegimeTab(){
   renderSectorStrength();
   renderWeeklyMovers();
   renderFearGreed();
-  if(liveRegime.fetchError){
-    document.getElementById('regime-statgrid').innerHTML = `<div class="empty">Could not reach /api/regime: ${liveRegime.fetchError}</div>`;
-    document.getElementById('regime-fetched-label').textContent = '';
-    return;
-  }
-  if(liveRegime.marketClosed){
-    const reasonText = liveRegime.marketClosed === 'weekend' ? 'Market closed (Saturday/Sunday)' : 'Market closed (holiday)';
-    const lastNote = currentRegime ? `Showing the last saved snapshot from ${currentRegime.snapshotDate} — nothing new is fetched or saved on a non-trading day.` : 'No saved snapshot yet.';
-    document.getElementById('regime-statgrid').innerHTML = `<div class="empty">${reasonText}. ${lastNote}</div>`;
-    document.getElementById('regime-fetched-label').textContent = '';
-    return;
-  }
-  const newHighsN500 = breadthHistory[0] ? breadthHistory[0].countNewHighN500 : null;
-  const newLowsN500 = breadthHistory[0] ? breadthHistory[0].countNewLowN500 : null;
-  const scored = computeRegimeScore(gatherRegimeScoreInputs());
-  document.getElementById('regime-fetched-label').textContent = liveRegime.fetchedAt ? ('Fetched at ' + new Date(liveRegime.fetchedAt).toLocaleTimeString('en-IN')) : '';
+
   const tile = (label, val, err) => `<div class="stat"><div class="num">${val==null?'-':(typeof val==='number'&&!Number.isInteger(val)?val.toFixed(2):val)}</div><div class="lbl">${label}${err?' <span class=\"flag\">'+err+'</span>':''}</div></div>`;
   // FII/DII net flows: positive = net buying, negative = net selling — colored and labeled
   // so the direction reads at a glance instead of just a signed number.
@@ -1766,6 +1762,42 @@ function renderRegimeTab(){
     return `<div class="stat"><div class="num ${cls}">${known?val.toFixed(2):'-'}</div><div class="lbl">${label}${dir}${err?' <span class=\"flag\">'+err+'</span>':''}</div></div>`;
   };
   const infoIcon = `<span class="info-icon" onclick="toggleRegimeInfo(event)" title="How this score is calculated">ⓘ</span>`;
+
+  if(liveRegime.fetchError){
+    document.getElementById('regime-statgrid').innerHTML = `<div class="empty">Could not reach /api/regime: ${liveRegime.fetchError}</div>`;
+    document.getElementById('regime-fetched-label').textContent = '';
+    return;
+  }
+  if(liveRegime.marketClosed){
+    document.getElementById('regime-fetched-label').textContent = '';
+    // Rather than a blank "market closed" message, show the last trading day's actual
+    // numbers (from the saved market_regime/market_breadth_history rows) with an honest
+    // "showing <Weekday>'s data" label — same "degrade to last known good" pattern already
+    // used by Market Thrust/Sector Strength, just applied to the whole tile row this round.
+    if(!currentRegime){
+      const reasonText = liveRegime.marketClosed === 'weekend' ? 'Market closed (Saturday/Sunday)' : 'Market closed (holiday)';
+      document.getElementById('regime-statgrid').innerHTML = `<div class="empty">${reasonText}. No saved snapshot yet.</div>`;
+      return;
+    }
+    const newHighsN500 = breadthHistory[0] ? breadthHistory[0].countNewHighN500 : null;
+    const newLowsN500 = breadthHistory[0] ? breadthHistory[0].countNewLowN500 : null;
+    const scoreTile = `<div class="stat"><div class="num ${scoreClass(currentRegime.regimeLabel)}">${currentRegime.regimeLabel||'-'}</div><div class="lbl">Regime ${infoIcon}</div></div>`;
+    document.getElementById('regime-statgrid').innerHTML =
+      `<div class="save-note" style="grid-column:1/-1; margin-bottom:2px;">Market closed today — showing ${weekdayLabel(currentRegime.snapshotDate)}'s data (${currentRegime.snapshotDate}).</div>` +
+      tile('India VIX', currentRegime.vix, null) +
+      flowTile('FII Net (₹cr)', currentRegime.fiiNet, null) +
+      flowTile('DII Net (₹cr)', currentRegime.diiNet, null) +
+      tile('New Highs (NIFTY 500)', newHighsN500, null) +
+      tile('New Lows (NIFTY 500)', newLowsN500, null) +
+      tile('PCR', currentRegime.pcr, null) +
+      tile('FII Options PCR', null, null) +
+      scoreTile;
+    return;
+  }
+  const newHighsN500 = breadthHistory[0] ? breadthHistory[0].countNewHighN500 : null;
+  const newLowsN500 = breadthHistory[0] ? breadthHistory[0].countNewLowN500 : null;
+  const scored = computeRegimeScore(gatherRegimeScoreInputs());
+  document.getElementById('regime-fetched-label').textContent = liveRegime.fetchedAt ? ('Fetched at ' + new Date(liveRegime.fetchedAt).toLocaleTimeString('en-IN')) : '';
   const scoreTile = scored.score==null
     ? `<div class="stat"><div class="num">Scoring…</div><div class="lbl">Regime ${infoIcon}</div></div>`
     : `<div class="stat"><div class="num ${scoreClass(scored.label)}">${scored.label}</div><div class="lbl">Regime (score ${scored.score}) ${infoIcon}</div></div>`;
@@ -2176,24 +2208,45 @@ function fearGreedLabel(score){
   if(score>=20) return 'Fear';
   return 'Extreme Fear';
 }
+// Maps the 3-bucket regime label to Fear/Greed wording — used as the closed-market fallback,
+// since only the label (not the numeric score) is persisted in market_regime for past days.
+function fearGreedLabelFromRegimeLabel(label){
+  if(label==='Risk-On') return 'Greed';
+  if(label==='Risk-Off') return 'Fear';
+  return 'Neutral';
+}
 function renderFearGreed(){
   const container = document.getElementById('fear-greed-panel');
   if(!container) return; // not on the Stocks view
-  if(liveRegime.fetchError || liveRegime.marketClosed || liveRegime.vix===undefined){
+  const live = !liveRegime.fetchError && !liveRegime.marketClosed && liveRegime.vix!==undefined;
+  if(live){
+    const scored = computeRegimeScore(gatherRegimeScoreInputs());
+    if(scored.score==null){
+      container.innerHTML = '<div class="empty">Scoring… (needs a few more inputs to arrive)</div>';
+      return;
+    }
+    const cls = scoreClass(scored.label);
+    container.innerHTML = `
+      <div style="text-align:center; padding:4px 0;">
+        <div class="${cls}" style="font-size:32px; font-weight:bold; line-height:1;">${scored.score}</div>
+        <div class="${cls}" style="font-size:13px; font-weight:bold; margin-top:4px;">${fearGreedLabel(scored.score)}</div>
+        <div class="save-note" style="margin-top:8px;">Same composite as the Market Regime tab's score (0 = Extreme Fear, 100 = Extreme Greed).</div>
+      </div>
+    `;
+    return;
+  }
+  // Market closed (or live data hasn't arrived yet) — fall back to the last saved label.
+  // No numeric score for past days (market_regime only persists the 3-bucket label, not the
+  // 0-100 composite), so this shows the label only, honestly captioned with which day it's from.
+  if(!currentRegime || !currentRegime.regimeLabel){
     container.innerHTML = '<div class="empty">Waiting for live regime data…</div>';
     return;
   }
-  const scored = computeRegimeScore(gatherRegimeScoreInputs());
-  if(scored.score==null){
-    container.innerHTML = '<div class="empty">Scoring… (needs a few more inputs to arrive)</div>';
-    return;
-  }
-  const cls = scoreClass(scored.label);
+  const cls = scoreClass(currentRegime.regimeLabel);
   container.innerHTML = `
     <div style="text-align:center; padding:4px 0;">
-      <div class="${cls}" style="font-size:32px; font-weight:bold; line-height:1;">${scored.score}</div>
-      <div class="${cls}" style="font-size:13px; font-weight:bold; margin-top:4px;">${fearGreedLabel(scored.score)}</div>
-      <div class="save-note" style="margin-top:8px;">Same composite as the Market Regime tab's score (0 = Extreme Fear, 100 = Extreme Greed).</div>
+      <div class="${cls}" style="font-size:20px; font-weight:bold;">${fearGreedLabelFromRegimeLabel(currentRegime.regimeLabel)}</div>
+      <div class="save-note" style="margin-top:8px;">Market closed — showing ${weekdayLabel(currentRegime.snapshotDate)}'s regime (${currentRegime.snapshotDate}). No live score until the next trading session.</div>
     </div>
   `;
 }
@@ -2213,10 +2266,27 @@ async function fetchNews(){
   renderTrendingPanel();
   renderWatchlistNews();
 }
+// Google News RSS often returns several near-duplicate headlines about the same story from
+// different outlets — sort newest-first, then drop anything whose first few words match a
+// title already kept, so the short list that actually renders is the latest *distinct* news,
+// not five outlets covering the identical story.
+function dedupeAndSortNews(items){
+  const sorted = (items||[]).slice().sort((a,b)=> new Date(b.pubDate||0) - new Date(a.pubDate||0));
+  const seen = new Set();
+  const out = [];
+  sorted.forEach(item=>{
+    const sig = (item.title||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().split(' ').slice(0,6).join(' ');
+    if(sig && seen.has(sig)) return;
+    if(sig) seen.add(sig);
+    out.push(item);
+  });
+  return out;
+}
 function renderNewsList(items, err){
   if(err) return `<div class="empty">${escapeHtml(err)}</div>`;
-  if(!items || !items.length) return '<div class="empty">No headlines right now.</div>';
-  return items.slice(0,6).map(n=>`
+  const deduped = dedupeAndSortNews(items);
+  if(!deduped.length) return '<div class="empty">No headlines right now.</div>';
+  return deduped.slice(0,5).map(n=>`
     <div class="news-item">
       ${isHttpUrl(n.link) ? `<a href="${escapeHtml(n.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(n.title)}</a>` : escapeHtml(n.title)}
       ${n.source ? `<div class="src">${escapeHtml(n.source)}</div>` : ''}
@@ -2294,10 +2364,30 @@ function renderWatchlistNews(){
 }
 
 // Stock table — Name / Mcap / RS Score / Volume Deviation, all computed client-side from
-// data already tracked for other panels (ema_state's rsCloses/recentVolumes), plus one new
-// static file (marketcap.json — built the same way as sectors.json, from NSE's own NIFTY
-// 100/Midcap150/Smallcap250 constituent lists, which exactly partition the NIFTY 500).
+// data already tracked for other panels (ema_state's rsCloses/recentVolumes), plus one static
+// file (marketcap.json — built like sectors.json, from NSE's own NIFTY 50/Next 50/Midcap 150/
+// Smallcap 250 constituent lists, which exactly partition the NIFTY 500). Stores a 1–500 rank
+// per symbol (1 = biggest, in the order NSE itself publishes those 4 lists) rather than just a
+// Large/Mid/Small string — an approximate but genuinely sortable proxy for market cap, not a
+// real ₹ figure (no free NSE source gives that), and precise enough to drive the tier filter.
 let marketCapData = null;
+const MCAP_TIERS = [
+  { name: 'Nifty 50', max: 50 },
+  { name: 'Nifty Next 50', max: 100 },
+  { name: 'Nifty Midcap 150', max: 250 },
+  { name: 'Nifty Smallcap 250', max: 500 },
+];
+function tierFromRank(rank){
+  if(rank==null) return null;
+  const t = MCAP_TIERS.find(t=>rank<=t.max);
+  return t ? t.name : null;
+}
+function capCategoryFromRank(rank){
+  if(rank==null) return '-';
+  if(rank<=100) return 'Large Cap';
+  if(rank<=250) return 'Mid Cap';
+  return 'Small Cap';
+}
 function mcapClass(mc){
   if(mc==='Large Cap') return 'equity';
   if(mc==='Mid Cap') return 'fno';
@@ -2317,6 +2407,19 @@ function volumeDeviationPct(sym){
   if(!avg) return null;
   return (today-avg)/avg*100;
 }
+// Click either header to sort by it; clicking the active column again flips direction. Mcap
+// sorts on the underlying rank number (lower rank = bigger company), but the arrow/label
+// shown to the user describes actual market-cap direction (High→Low / Low→High), not the
+// raw rank direction, since those are inverted from each other.
+let stockSort = { by: 'rs', dir: 'desc' };
+function setStockSort(by){
+  if(stockSort.by === by) stockSort.dir = stockSort.dir === 'desc' ? 'asc' : 'desc';
+  // First click on either column leads with "best/biggest first" — dir 'asc' on mcap means
+  // rank ascending, i.e. the biggest companies (High→Low market cap), matching how 'desc' on
+  // rs already means highest RS Score first.
+  else stockSort = { by, dir: by==='mcap' ? 'asc' : 'desc' };
+  renderStockTable();
+}
 function renderStockTable(){
   const container = document.getElementById('stock-table');
   if(!container) return; // not on the Stocks view
@@ -2324,27 +2427,46 @@ function renderStockTable(){
     container.innerHTML = '<div class="empty">Needs today\'s breadth update first — give it a moment.</div>';
     return;
   }
+  const filterSelect = document.getElementById('stock-universe-select');
+  const filter = filterSelect ? filterSelect.value : 'All';
   const rsRatings = computeRSRatings();
-  const rows = Object.keys(emaStateCache).map(sym=>{
+  let rows = Object.keys(emaStateCache).map(sym=>{
     const st = emaStateCache[sym];
     if(!st || st.lastClose==null) return null;
+    const rank = (marketCapData && marketCapData[sym]) ?? null;
     return {
-      sym,
-      mcap: (marketCapData && marketCapData[sym]) || '-',
+      sym, rank,
+      tier: tierFromRank(rank),
+      mcap: capCategoryFromRank(rank),
       rs: rsRatings[sym] ?? null,
       volDev: volumeDeviationPct(sym)
     };
-  }).filter(Boolean).sort((a,b)=>(b.rs ?? -1)-(a.rs ?? -1));
+  }).filter(Boolean);
+  if(filter !== 'All') rows = rows.filter(r=>r.tier === filter);
+  rows.sort((a,b)=>{
+    // Mcap uses rank ascending==biggest-first internally; rs uses the score directly.
+    const va = stockSort.by==='mcap' ? (a.rank ?? Infinity) : (a.rs ?? -1);
+    const vb = stockSort.by==='mcap' ? (b.rank ?? Infinity) : (b.rs ?? -1);
+    return stockSort.dir==='asc' ? va-vb : vb-va;
+  });
   const freshness = document.getElementById('stocks-freshness');
   if(freshness){
     const anyState = Object.values(emaStateCache).find(s=>s && s.lastDate);
     freshness.textContent = anyState ? `As of ${anyState.lastDate} · ${rows.length} names` : '';
   }
+  const rsArrow = stockSort.by==='rs' ? (stockSort.dir==='desc' ? ' ▼' : ' ▲') : '';
+  // dir 'asc' on mcap = rank ascending = biggest company first = High→Low market cap.
+  const mcapArrow = stockSort.by==='mcap' ? (stockSort.dir==='asc' ? ' ▲ High→Low' : ' ▼ Low→High') : '';
   container.innerHTML = `<div class="stock-table-list"><table style="font-size:12px;">
-    <tr><th>Name</th><th>Mcap</th><th>RS Score</th><th>Vol Dev (wk)</th></tr>
+    <tr>
+      <th>Name</th>
+      <th style="cursor:pointer;" onclick="setStockSort('mcap')" title="Click to sort by market cap">Mcap${mcapArrow}</th>
+      <th style="cursor:pointer;" onclick="setStockSort('rs')" title="Click to sort by RS Score">RS Score${rsArrow}</th>
+      <th>Vol Dev (wk)</th>
+    </tr>
     ${rows.map(r=>`<tr>
       <td>${r.sym}</td>
-      <td><span class="pill ${mcapClass(r.mcap)}">${r.mcap}</span></td>
+      <td><span class="pill ${mcapClass(r.mcap)}" title="${r.tier||''}">${r.mcap}</span></td>
       <td class="${rsRatingClass(r.rs)}">${r.rs ?? '-'}</td>
       <td class="${r.volDev==null?'':(r.volDev>=0?'pos':'neg')}">${r.volDev==null?'-':(r.volDev>=0?'+':'')+r.volDev.toFixed(0)+'%'}</td>
     </tr>`).join('')}
