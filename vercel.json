@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/cron-breadth", "schedule": "0 14 * * 1-5" }
+  ]
+}
