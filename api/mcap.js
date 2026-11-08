@@ -31,7 +31,7 @@ async function getSession() {
 
 async function quoteBatch(symbols, s) {
   const list = symbols.map(x => encodeURIComponent(x + '.NS')).join(',');
-  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${list}&crumb=${encodeURIComponent(s.crumb)}&fields=marketCap`;
+  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${list}&crumb=${encodeURIComponent(s.crumb)}&region=IN&lang=en-IN&fields=marketCap,sharesOutstanding,regularMarketPrice`;
   const r = await fetch(url, { headers: { 'User-Agent': UA, Cookie: s.cookie } });
   if (r.status === 401 || r.status === 403) { session = null; throw new Error('Yahoo rejected the session (HTTP ' + r.status + ')'); }
   if (!r.ok) throw new Error('Yahoo HTTP ' + r.status);
