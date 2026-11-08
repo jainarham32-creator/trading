@@ -45,6 +45,14 @@ async function quoteBatch(symbols, s) {
 async function summaryCap(sym, s) {
   for (const host of ['query2', 'query1']) {
     try {
+      const qr = await fetch(`https://${host}.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(sym + '.NS')}&crumb=${encodeURIComponent(s.crumb)}`, { headers: { 'User-Agent': UA, Cookie: s.cookie } });
+      if (qr.ok) {
+        const qj = await qr.json();
+        const q = qj.quoteResponse && qj.quoteResponse.result && qj.quoteResponse.result[0];
+        if (q && q.marketCap > 0) return q.marketCap;
+      }
+    } catch (e) { /* fall through to quoteSummary */ }
+    try {
       const url = `https://${host}.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(sym + '.NS')}?modules=price,defaultKeyStatistics&crumb=${encodeURIComponent(s.crumb)}`;
       const r = await fetch(url, { headers: { 'User-Agent': UA, Cookie: s.cookie } });
       if (!r.ok) continue;
