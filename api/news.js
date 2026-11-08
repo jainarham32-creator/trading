@@ -36,8 +36,13 @@ const NEWS_CONFIG = {
 };
 
 const GN = (q) => `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-IN&gl=IN&ceid=IN:en`;
+// Relevance filter for Google-News-sourced items (ET/BS/Mint/CNBC feeds are already market sections).
+const MARKET_RE = /\b(sensex|nifty|stocks?|shares?|equit(?:y|ies)|market|markets|rbi|rupee|inr|ipo|fii|fpi|dii|bonds?|yields?|crude|oil|gold|earnings|profit|results|q[1-4]|sebi|banks?|rally|selloff|sell-off|fed|inflation|gdp|tariffs?|futures|options|dalal|bse|nse|mutual funds?|brokerage|target price)\b/i;
+// Aggregator/forum pages that are not news.
+const JUNK_RE = /forum discussion/i;
+
 const FEEDS = [
-  { name: 'Reuters',            weight: 1.00, viaGoogle: true,  url: GN('site:reuters.com (India OR Sensex OR Nifty OR markets OR stocks OR RBI OR rupee) when:2d') },
+  { name: 'Reuters',            weight: 1.00, viaGoogle: true,  url: GN('site:reuters.com (India stocks OR Sensex OR Nifty OR "Indian shares" OR "Indian rupee" OR "Reserve Bank of India" OR "India bond") when:2d') },
   { name: 'Economic Times',     weight: 0.95, viaGoogle: false, url: 'https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms' },
   { name: 'Economic Times',     weight: 0.95, viaGoogle: false, url: 'https://economictimes.indiatimes.com/markets/stocks/rssfeeds/2146842.cms' },
   { name: 'Business Standard',  weight: 0.95, viaGoogle: false, url: 'https://www.business-standard.com/rss/markets-106.rss' },
@@ -222,6 +227,9 @@ module.exports = async (req, res) => {
       // Google News appends " - Outlet" to the title; strip it so duplicates match across sources
       let title = p.title;
       if (f.viaGoogle && p.gnSource && title.endsWith(' - ' + p.gnSource)) title = title.slice(0, -(p.gnSource.length + 3));
+      // Google-sourced feeds are keyword searches, so they can return off-topic stories; keep only market-relevant headlines.
+      if (f.viaGoogle && !MARKET_RE.test(title)) return;
+      if (JUNK_RE.test(title)) return;
       all.push({ title, link: p.link, time: p.time, source: f.name, weight: f.weight, viaGoogle: f.viaGoogle });
       kept++;
     });

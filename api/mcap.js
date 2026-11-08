@@ -90,15 +90,6 @@ module.exports = async (req, res) => {
     });
     // Second pass for quotes that came back without a marketCap (capped so a bad day can't fan out).
     const gaps = wanted.filter(x => mcap[x] == null).slice(0, 40);
-    if (req.query && req.query.debug && gaps.length) {
-      const g = gaps[0];
-      const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(g + '.NS')}?modules=price,defaultKeyStatistics&crumb=${encodeURIComponent(s.crumb)}`;
-      const r = await fetch(url, { headers: { 'User-Agent': UA, Cookie: s.cookie } });
-      const t = await r.text();
-      const q0 = flat.find(q => q.symbol === g + '.NS');
-      res.status(200).json({ gap: g, status: r.status, body: t.slice(0, 600), quote: q0 });
-      return;
-    }
     await Promise.all(gaps.map(async sym => {
       const mc = await summaryCap(sym, s);
       if (mc) mcap[sym] = Math.round(mc / 1e7);
