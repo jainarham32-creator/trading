@@ -53,7 +53,12 @@ module.exports = async (req, res) => {
     const batches = [];
     for (let i = 0; i < wanted.length; i += BATCH) batches.push(wanted.slice(i, i + BATCH));
     const results = await Promise.all(batches.map(b => quoteBatch(b, s).catch(e => { error = e.message || String(e); return []; })));
-    results.flat().forEach(q => {
+    const flat = results.flat();
+    if (req.query && req.query.debug) {
+      res.status(200).json({ debug: flat.map(q => ({ symbol: q.symbol, marketCap: q.marketCap, price: q.regularMarketPrice, shares: q.sharesOutstanding, exch: q.fullExchangeName })), batches: batches.length, error });
+      return;
+    }
+    flat.forEach(q => {
       const sym = String(q.symbol || '').replace(/\.NS$/, '');
       if (sym && q.marketCap > 0) mcap[sym] = Math.round(q.marketCap / 1e7); // ₹ → ₹ crore (1 Cr = 1e7)
     });
