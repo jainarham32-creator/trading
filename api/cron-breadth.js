@@ -22,64 +22,79 @@ const NSE_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
 };
 
-// ---- Regime score v4 — MUST be kept in sync by hand with computeRegimeScore() and its
-// factor functions in index.html if that formula ever changes again. ----
-const REGIME_WEIGHTS = { vix: 20, breadth50: 15, breadth200: 15, pcr: 10, highsLows: 15, nifty500Ema20: 10, thrust: 15 };
+// ---- Regime score v5 — MUST be kept in sync by hand with REGIME_CONFIG / computeRegimeScore()
+// in index.html if that formula ever changes. 4 components, 0-100:
+//   % of Nifty 500 above 200 DMA (30%, as-is) · market thrust (25%, 5-day avg of adv/(adv+dec)*100)
+//   · new highs vs lows (25%, 5-day avg of NH/(NH+NL)*100) · PCR (20%, 0.7→0, 1.0→50, 1.3→100,
+//   capped at 70 above 1.6). ≥60 Risk-On, 40–59 Neutral, <40 Risk-Off. ----
+const REGIME_CONFIG = {
+  weights: { above200: 30, thrust: 25, highsLows: 25, pcr: 20 },
+  thresholds: { riskOn: 60, riskOff: 40 },
+  avgDays: 5,
+  pcr: { zeroAt: 0.7, midAt: 1.0, fullAt: 1.3, crowdedAbove: 1.6, crowdedCap: 70 },
+};
 function clamp01to100(v) { return Math.max(0, Math.min(100, v)); }
-function vixFactor(vix) {
-  if (vix == null || isNaN(vix)) return null;
-  return clamp01to100(100 - (vix - 11) / (26 - 11) * 100);
+function pcrScore(p) {
+  if (p == null || isNaN(p)) return null;
+  const c = REGIME_CONFIG.pcr;
+  let s;
+  if (p <= c.zeroAt) s = 0;
+  else if (p <= c.midAt) s = (p - c.zeroAt) / (c.midAt - c.zeroAt) * 50;
+  else if (p < c.fullAt) s = 50 + (p - c.midAt) / (c.fullAt - c.midAt) * 50;
+  else s = 100;
+  if (p > c.crowdedAbove) s = Math.min(s, c.crowdedCap);
+  return s;
 }
-function breadthFactor(pct) {
-  if (pct == null || isNaN(pct)) return null;
-  if (pct <= 20) return pct / 20 * 30;
-  if (pct <= 50) return 30 + (pct - 20) / (50 - 20) * 20;
-  if (pct <= 75) return 50 + (pct - 50) / (75 - 50) * 50;
-  return 100 - (pct - 75) / (100 - 75) * 45;
+// rows are newest-first breadth rows (snake_case DB columns)
+function avgRecent(rows, fn) {
+  const vals = [];
+  for (const r of rows) {
+    const v = fn(r);
+    if (v != null && !isNaN(v)) vals.push(v);
+    if (vals.length >= REGIME_CONFIG.avgDays) break;
+  }
+  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
 }
-function pcrFactor(pcr) {
-  if (pcr == null || isNaN(pcr)) return null;
-  if (pcr <= 0.6) return 0;
-  if (pcr >= 1.5) return 100;
-  return (pcr - 0.6) / (1.5 - 0.6) * 100;
-}
-function highsLowsFactor(newHighs, newLows) {
-  if (newHighs == null || newLows == null || isNaN(newHighs) || isNaN(newLows)) return null;
-  const total = newHighs + newLows;
-  if (total === 0) return 50;
-  return newHighs / total * 100;
-}
-function nifty500Ema20Factor(close, ema20) {
-  if (close == null || ema20 == null || isNaN(close) || isNaN(ema20) || !ema20) return null;
-  const pctDiff = (close - ema20) / ema20 * 100;
-  return clamp01to100(50 + pctDiff / 3 * 50);
-}
-function marketThrustFactor(advances, declines) {
-  if (advances == null || declines == null || isNaN(advances) || isNaN(declines)) return null;
-  const total = advances + declines;
-  if (!total) return null;
-  return advances / total * 100;
-}
-function computeRegimeScore(s) {
-  const factors = {
-    vix: vixFactor(s.vix),
-    breadth50: breadthFactor(s.pctAbove50Ema),
-    breadth200: breadthFactor(s.pctAbove200Ema),
-    pcr: pcrFactor(s.pcr),
-    highsLows: highsLowsFactor(s.newHighs, s.newLows),
-    nifty500Ema20: nifty500Ema20Factor(s.nifty500Close, s.nifty500Ema20),
-    thrust: marketThrustFactor(s.thrustAdvances, s.thrustDeclines),
+function computeRegimeScore(rows, pcr) {
+  const W = REGIME_CONFIG.weights;
+  const latest = rows[0] || null;
+  const raw = {
+    above200: latest ? latest.pct_above_200ema : null,
+    thrust: avgRecent(rows, (r) => {
+      if (r.count_advances == null || r.count_declines == null) return null;
+      const t = r.count_advances + r.count_declines;
+      return t ? r.count_advances / t * 100 : null;
+    }),
+    highsLows: avgRecent(rows, (r) => {
+      if (r.count_newhigh_n500 == null || r.count_newlow_n500 == null) return null;
+      const t = r.count_newhigh_n500 + r.count_newlow_n500;
+      return t ? r.count_newhigh_n500 / t * 100 : 50;
+    }),
+    pcr: pcr == null ? null : pcr,
   };
-  if (Object.keys(REGIME_WEIGHTS).some((k) => factors[k] == null)) return { score: null, label: null };
-  const totalWeight = Object.values(REGIME_WEIGHTS).reduce((a, b) => a + b, 0);
-  const weighted = Object.keys(REGIME_WEIGHTS).reduce((a, k) => a + factors[k] * REGIME_WEIGHTS[k], 0);
-  const score = Math.round(weighted / totalWeight);
-  let label = 'Neutral';
-  if (score >= 65) label = 'Risk-On';
-  else if (score <= 35) label = 'Risk-Off';
+  const s = {
+    above200: raw.above200 == null ? null : clamp01to100(raw.above200),
+    thrust: raw.thrust == null ? null : clamp01to100(raw.thrust),
+    highsLows: raw.highsLows == null ? null : clamp01to100(raw.highsLows),
+    pcr: pcrScore(raw.pcr),
+  };
+  if (Object.keys(W).some((k) => s[k] == null)) return { score: null, label: null };
+  const total = Object.values(W).reduce((a, b) => a + b, 0);
+  const score = Math.round(Object.keys(W).reduce((a, k) => a + s[k] * W[k] / total, 0));
+  const label = score >= REGIME_CONFIG.thresholds.riskOn ? 'Risk-On' : (score >= REGIME_CONFIG.thresholds.riskOff ? 'Neutral' : 'Risk-Off');
   return { score, label };
 }
-const NIFTY500_EMA20_K = 2 / 21;
+// Upsert that survives a missing optional column (migration_008 not run yet): on a
+// "column ... does not exist / schema cache" error, retry once without the optional columns.
+async function upsertTolerant(supabase, table, row, onConflict, optionalCols) {
+  let res = await supabase.from(table).upsert(row, { onConflict });
+  if (res.error && /column|schema cache/i.test(res.error.message || '')) {
+    const slim = Object.assign({}, row);
+    optionalCols.forEach((c) => delete slim[c]);
+    res = await supabase.from(table).upsert(slim, { onConflict });
+  }
+  return res.error;
+}
 
 // ---- Bhavcopy fetch — mirrors api/breadth.js's own parser (kept separate/duplicated rather
 // than imported, since that file's default export is a request handler, not a reusable
@@ -186,7 +201,7 @@ function computeBreadthUpdate(resp, priorState) {
     if (price > newEma200) above200++;
   });
 
-  let advances = 0, declines = 0;
+  let advances = 0, declines = 0, unchanged = 0;
   if (resp.prevCloses) {
     Object.keys(resp.closes).forEach((sym) => {
       const prev = resp.prevCloses[sym];
@@ -194,6 +209,7 @@ function computeBreadthUpdate(resp, priorState) {
       const price = resp.closes[sym];
       if (price > prev) advances++;
       else if (price < prev) declines++;
+      else unchanged++;
     });
   }
 
@@ -206,7 +222,7 @@ function computeBreadthUpdate(resp, priorState) {
       count_up20_5d: up20_5d, count_up30_5d: up30_5d,
       count_up4pct_vol: up4pctVol, count_down4pct_vol: down4pctVol,
       count_newhigh_n500: newHighN500, count_newlow_n500: newLowN500,
-      count_advances: advances, count_declines: declines,
+      count_advances: advances, count_declines: declines, count_unchanged: unchanged,
     },
   };
 }
@@ -264,48 +280,29 @@ module.exports = async (req, res) => {
         const updated = computeBreadthUpdate(bhav, priorState);
         if (updated) {
           const { error: emaErr } = await supabase.from('ema_state').upsert({ user_id: userId, state: updated.state }, { onConflict: 'user_id' });
-          const { error: histErr } = await supabase.from('market_breadth_history').upsert(
+          const histErr = await upsertTolerant(supabase, 'market_breadth_history',
             Object.assign({ user_id: userId, snapshot_date: bhav.date }, updated.breadthRow),
-            { onConflict: 'user_id,snapshot_date' }
-          );
+            'user_id,snapshot_date', ['count_unchanged']);
           log.push(`${userId}: breadth updated for ${bhav.date}${emaErr ? ` (ema_state error: ${emaErr.message})` : ''}${histErr ? ` (history error: ${histErr.message})` : ''}`);
         } else {
           log.push(`${userId}: breadth update skipped (no matching symbols)`);
         }
       }
 
-      const { data: freshBreadth } = await supabase.from('market_breadth_history').select('*').eq('user_id', userId).order('snapshot_date', { ascending: false }).limit(1).maybeSingle();
-      const { data: latestRegime } = await supabase.from('market_regime').select('*').eq('user_id', userId).order('snapshot_date', { ascending: false }).limit(1).maybeSingle();
+      // newest-first stored breadth rows: the score's 5-day averages and the 200-DMA input all come from these
+      const { data: recentBreadth } = await supabase.from('market_breadth_history').select('*').eq('user_id', userId).order('snapshot_date', { ascending: false }).limit(10);
+      const scored = computeRegimeScore(recentBreadth || [], liveRegime.pcr ?? null);
 
-      let nifty500Ema20Today = null;
-      if (liveRegime.nifty500Close != null && latestRegime && latestRegime.nifty500_ema20 != null) {
-        nifty500Ema20Today = liveRegime.nifty500Close * NIFTY500_EMA20_K + latestRegime.nifty500_ema20 * (1 - NIFTY500_EMA20_K);
-      }
-      const scored = computeRegimeScore({
-        vix: liveRegime.vix ?? null,
-        pcr: liveRegime.pcr ?? null,
-        newHighs: freshBreadth ? freshBreadth.count_newhigh_n500 : null,
-        newLows: freshBreadth ? freshBreadth.count_newlow_n500 : null,
-        pctAbove50Ema: freshBreadth ? freshBreadth.pct_above_50ema : null,
-        pctAbove200Ema: freshBreadth ? freshBreadth.pct_above_200ema : null,
-        nifty500Close: liveRegime.nifty500Close ?? null,
-        nifty500Ema20: nifty500Ema20Today,
-        thrustAdvances: liveRegime.thrustAdvances ?? null,
-        thrustDeclines: liveRegime.thrustDeclines ?? null,
-      });
-
-      const { error: regimeErr } = await supabase.from('market_regime').upsert({
+      const regimeErr = await upsertTolerant(supabase, 'market_regime', {
         user_id: userId,
         snapshot_date: new Date().toISOString().slice(0, 10),
         vix: liveRegime.vix ?? null,
-        fii_net: liveRegime.fiiNet ?? null,
-        dii_net: liveRegime.diiNet ?? null,
         pcr: liveRegime.pcr ?? null,
         regime_label: scored.label,
+        regime_score: scored.score,
         nifty500_close: liveRegime.nifty500Close ?? null,
-        nifty500_ema20: nifty500Ema20Today,
-      }, { onConflict: 'user_id,snapshot_date' });
-      log.push(`${userId}: regime snapshot saved (${scored.label ?? 'no score'})${regimeErr ? ` — error: ${regimeErr.message}` : ''}`);
+      }, 'user_id,snapshot_date', ['regime_score']);
+      log.push(`${userId}: regime snapshot saved (${scored.label ?? 'no score'}${scored.score != null ? ' ' + scored.score : ''})${regimeErr ? ` — error: ${regimeErr.message}` : ''}`);
     } catch (e) {
       log.push(`${userId}: FAILED — ${e.message || e}`);
     }
