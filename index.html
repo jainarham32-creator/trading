@@ -222,8 +222,23 @@
   @media (max-width:1200px){.paged-layout.regime-layout{grid-template-columns:240px 1fr 340px;} .paged-layout.regime-layout.no-left{grid-template-columns:1fr 340px;} .paged-layout.stocks-layout{grid-template-columns:280px 1fr 280px;}}
   @media (max-width:1100px){.paged-layout.journal-layout{grid-template-columns:240px 1fr 280px;}}
   @media (max-width:900px){.paged-layout, .paged-layout.regime-layout, .paged-layout.journal-layout, .paged-layout.stocks-layout{grid-template-columns:1fr;}}
-  .info-icon{cursor:pointer; color:var(--text-dim); font-size:11px; margin-left:3px;}
-  .info-icon:hover{color:var(--amber);}
+  .tip{cursor:help; color:var(--text-dim); font-size:12px; margin-left:4px; font-weight:normal; text-transform:none; letter-spacing:0; user-select:none; outline:none;}
+  .tip:hover, .tip:focus{color:var(--amber);}
+  #tip-pop{display:none; position:fixed; z-index:400; width:300px; max-width:calc(100vw - 16px); padding:10px 12px; background:var(--panel); color:var(--text); border:1px solid var(--amber-dim); border-radius:4px; box-shadow:0 6px 18px rgba(0,0,0,.35); font-size:12px; line-height:1.5; font-weight:normal; text-transform:none; letter-spacing:0; text-align:left; pointer-events:none;}
+  .card-head{display:flex; justify-content:space-between; align-items:center; gap:10px; border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:12px;}
+  .card-head h2{margin:0; border:none; padding:0;}
+  .card-sub{font-size:10px; color:var(--text-dim); text-transform:none; letter-spacing:0; font-weight:normal;}
+  .seg-toggle{display:inline-flex; border:1px solid var(--line); border-radius:3px; overflow:hidden; flex-shrink:0;}
+  .seg-toggle button{margin:0; border-radius:0; border:none; background:transparent; color:var(--text-dim); padding:3px 10px; font-size:10px; letter-spacing:0.5px;}
+  .seg-toggle button:hover{background:var(--panel-2); color:var(--text);}
+  .seg-toggle button.active{background:var(--amber); color:#161408;}
+  .thrust-scroll{max-height:168px; overflow-y:auto; border:1px solid var(--line); border-radius:3px;}
+  .thrust-scroll table{margin:0;}
+  .thrust-scroll thead th{position:sticky; top:0; background:var(--panel-2); z-index:1;}
+  .sector-section-title{font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-dim); margin-bottom:8px;}
+  .regime-score-head{display:flex; align-items:center; gap:16px;}
+  .regime-score-big{font-size:40px; font-weight:bold; line-height:1;}
+  .regime-score-label{font-size:16px; font-weight:bold;}
   .stock-table-list{max-height:640px; overflow-y:auto;}
   .news-item{padding:7px 0; border-bottom:1px solid var(--line); font-size:14px;}
   .news-section-label{font-weight:bold; font-size:14px; color:var(--text); text-transform:uppercase; letter-spacing:0.5px;}
@@ -231,6 +246,14 @@
   .news-item a:hover{color:var(--amber);}
   .news-item .src{color:var(--text-dim); font-size:10px; margin-top:2px;}
   .trend-row{display:flex; justify-content:space-between; font-size:12px; padding:3px 0;}
+  .news-scroll{max-height:560px; overflow-y:auto; margin-top:10px; border-top:1px solid var(--line);}
+  .news-gauge{padding:2px 0 4px;}
+  .news-gauge-bar{position:relative; height:8px; border-radius:4px; margin-top:10px; background:linear-gradient(90deg, var(--red) 0%, var(--amber) 50%, var(--green) 100%);}
+  .news-gauge-marker{position:absolute; top:-4px; width:4px; height:16px; margin-left:-2px; border-radius:2px; background:var(--text);}
+  .news-gauge-scale{display:flex; justify-content:space-between; font-size:9px; color:var(--text-dim); margin-top:4px; text-transform:uppercase; letter-spacing:0.3px;}
+  .sent-tag{display:inline-block; font-size:9px; font-weight:bold; text-transform:uppercase; letter-spacing:0.4px; padding:0 5px; border-radius:3px; border:1px solid var(--line); color:var(--text-dim);}
+  .sent-tag.greed{color:var(--green); border-color:var(--green);}
+  .sent-tag.fear{color:var(--red); border-color:var(--red);}
   .position-charts-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(320px,1fr)); gap:14px;}
   .position-chart-card{border:1px solid var(--line); border-radius:4px; overflow:hidden;}
   .position-chart-title{padding:6px 10px; font-size:12px; font-weight:bold; color:var(--text-dim); border-bottom:1px solid var(--line); background:var(--panel-2);}
@@ -385,8 +408,7 @@
           </div>
         </div>
 
-        <div class="side-body" id="regime-score-info-popup" style="margin-bottom:12px;">
-          <div class="panel">
+        <div class="panel">
             <p><b>Thesis:</b> seven inputs — volatility, short- and long-term breadth, options positioning, new highs/lows, the index's own trend, and today's live advance/decline — each scored 0-100 on a smooth sliding scale, re-centered so an unremarkable/neutral reading on each one scores ~50 (not skewed bullish by default), then weighted and averaged into one composite. A cross-check against your Playbook's setups, not a standalone signal. Shows "Scoring…" until every input for the day has arrived.</p>
             <p><b>Weighting:</b></p>
             <ul>
@@ -408,12 +430,12 @@
         </div>
 
         <div class="panel">
-          <h2>% of NIFTY 500 Above 50 EMA</h2>
+          <div class="card-head"><h2>% of NIFTY 500 Above 50 DMA <span class="card-sub">(EMA)</span></h2><div class="seg-toggle" id="toggle-above-50"></div></div>
           <div id="chart-above-50ema" style="height:220px;"></div>
         </div>
 
         <div class="panel">
-          <h2>% of NIFTY 500 Above 200 EMA</h2>
+          <div class="card-head"><h2>% of NIFTY 500 Above 200 DMA <span class="card-sub">(EMA)</span></h2><div class="seg-toggle" id="toggle-above-200"></div></div>
           <div id="chart-above-200ema" style="height:220px;"></div>
         </div>
 
@@ -425,7 +447,12 @@
         </div>
 
         <div class="panel">
-          <h2>History</h2>
+          <div class="card-head"><h2>Regime Score</h2><span class="tip" tabindex="0" role="button" aria-label="More info" data-tip-key="regime">ⓘ</span></div>
+          <div id="regime-score-panel"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Regime History <span class="card-sub">(last 15 days)</span></h2>
           <div id="regime-history"></div>
         </div>
       </div>
@@ -437,20 +464,20 @@
 
         <div class="panel">
           <h2>Market Thrust</h2>
-          <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Whole-market advance/decline, live during market hours (refreshes every ~60s and on "Refresh from NSE"; falls back to the last close if live data is unavailable).</div>
+          <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Whole-market advance/decline: live during market hours (refreshes every ~60s), last close otherwise. The table below keeps the last 30 trading days.</div>
           <div id="market-thrust-panel"></div>
           <div id="market-thrust-history" style="margin-top:12px;"></div>
         </div>
 
         <div class="panel">
           <h2>Sector Strength</h2>
-          <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Live % of each sector index's constituents advancing today (falls back to % above 200-EMA as of last close if live data is unavailable).</div>
+          <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Share of each sector's tracked stocks trading above their long-term (200 DMA) and medium-term (20 DMA) averages, strongest first.</div>
           <div id="sector-strength-panel"></div>
         </div>
 
         <div class="panel">
           <h2>Weekly Top / Worst Movers</h2>
-          <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Best/worst 2 sectors by average constituent weekly return, last 3 weeks.</div>
+          <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Sectors ranked on a combined trend score, with the change since last week.</div>
           <div id="weekly-movers-panel"></div>
         </div>
       </div>
@@ -514,33 +541,21 @@
     <div class="paged-layout stocks-layout">
       <div>
         <div class="panel">
-          <h2>Fear &amp; Greed</h2>
-          <div id="fear-greed-panel"></div>
-        </div>
-
-        <div class="panel">
-          <h2>Markets News</h2>
+          <h2>Market News <span id="news-tip"></span></h2>
           <div id="news-panel"></div>
-        </div>
-
-        <div class="panel">
-          <h2>Market Buzz</h2>
-          <div style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">Trending stocks, top gainers/losers, and what's peaking or bottoming — news coverage, not a raw search-volume number (no free finance-scoped Trends API exists).</div>
-          <div id="trending-panel"></div>
         </div>
       </div>
 
       <div class="main-col">
         <div class="panel">
           <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:12px;">
-            <select id="stock-universe-select" onchange="renderStockTable()" style="margin-top:0; width:auto; font-weight:bold;">
-              <option value="All">NIFTY 500 (All)</option>
-              <option value="Nifty 50">NIFTY 50</option>
-              <option value="Nifty Next 50">NIFTY NEXT 50</option>
-              <option value="Nifty Midcap 150">NIFTY MIDCAP 150</option>
-              <option value="Nifty Smallcap 250">NIFTY SMALLCAP 250</option>
-            </select>
-            <span class="save-note" id="stocks-freshness"></span>
+            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+              <input id="basket-search" type="search" placeholder="Search indices…" oninput="renderBasketOptions()" onkeydown="basketSearchKey(event)" style="margin-top:0; width:150px;" autocomplete="off">
+              <select id="stock-universe-select" onchange="onBasketChange()" style="margin-top:0; width:auto; max-width:260px; font-weight:bold;">
+                <option value="nifty500">Nifty 500</option>
+              </select>
+            </div>
+            <span class="save-note" id="stocks-freshness" style="margin-top:0;"></span>
           </div>
           <div id="stock-table"></div>
         </div>
@@ -757,14 +772,6 @@ function toggleSideRow(id){
   row.classList.toggle('open', opening);
   body.classList.toggle('open', opening);
 }
-// Regime Score's explanation used to live in a left-panel accordion — the left panel is
-// gone now (theme toggle and this both moved out), so it's a small (i) icon next to the
-// stat tile instead, toggling a panel right below the stat grid.
-function toggleRegimeInfo(e){
-  if(e) e.stopPropagation();
-  document.getElementById('regime-score-info-popup').classList.toggle('open');
-}
-
 // Playbook needs real editing room (multiple textareas + the setup-multiplier rows), which
 // the 240px left panel can't comfortably give it — opens as a wide modal instead of an
 // in-panel accordion, reusing the same modal-backdrop pattern as the trade-edit modal.
@@ -927,7 +934,7 @@ function onTabShown(view){
   // Stocks tab is self-sufficient regardless of whether Market Regime was visited first —
   // it triggers the same live-fetch/breadth pipeline itself (Fear/Greed needs liveRegime,
   // the stock table needs emaStateCache), plus its own news fetch.
-  if(view==='stocks'){ fetchRegimeLive(); updateBreadthIfNeeded(); fetchNews(); }
+  if(view==='stocks'){ fetchRegimeLive(); updateBreadthIfNeeded(); fetchNews(); initStocksTab(); }
 }
 document.querySelectorAll('.tab').forEach(t=>{
   t.addEventListener('click', ()=>{
@@ -1562,117 +1569,130 @@ function renderExposure(){
 }
 
 // ---------- market regime ----------
-// Regime Score v3 — 7 factors, weighted by how much each actually says about regime health
-// (not equal-weighted any more), each scored on a smooth 0-100 continuum instead of a few
-// hard step bands (fewer artificial jumps, more information in the composite). Two factors
-// are new this round: %-above-200-EMA (the data was already being collected for the chart,
-// just never fed into the score) and live Market Thrust (this round's live NSE data, kept at
-// a modest weight deliberately — a single day's advance/decline is noisier than the other,
-// more structural factors, so it nudges the score rather than dominating it).
-// See .claude/skills/nse-market-data/SKILL.md for the full rationale behind each weight/band.
-// Any missing factor makes the whole score null (rendered as "Scoring…") rather than
-// silently averaging over fewer inputs — a partial score would be misleading, not just approximate.
-// v4 (this round): the actual bug behind "reads Risk-On almost every day" wasn't any single
-// factor dominating — it's that breadth's old formula scored a plain, unremarkable 50%-above-
-// EMA day at ~73 (linear from a 10% floor), not a neutral ~50. Every factor below is now
-// re-centered so its own natural "nothing special happening" midpoint actually scores ~50 —
-// highsLows/nifty500Ema20/thrust were already centered this way, breadth and PCR weren't.
-// Weights also nudged: PCR (a single derivatives-market snapshot) down to 10%, Market Thrust
-// (today's live, genuinely day-to-day-variable reading) up to 15%.
-const REGIME_WEIGHTS = { vix:20, breadth50:15, breadth200:15, pcr:10, highsLows:15, nifty500Ema20:10, thrust:15 };
+// Regime Score v5 — a 4-component weighted composite on a 0-100 scale. Everything tunable
+// lives in REGIME_CONFIG: change a weight, a threshold or the PCR mapping here and the score,
+// the breakdown card, the history table and the (i) tooltip all follow (the tooltip text is
+// generated from this object, never hand-typed).
+//
+//   % of Nifty 500 above its 200-day MA   30%   value as-is (62% above = 62)
+//   Market thrust (advance/decline)       25%   5-day avg of advances/(advances+declines)*100
+//   New highs vs new lows (52-week)       25%   5-day avg of NH/(NH+NL)*100
+//   Put-call ratio (OI based)             20%   0.7→0, 1.0→50, 1.3→100, linear + clamped;
+//                                               above 1.6 the score is capped at 70
+//
+// Moving-average note: this app stores EXPONENTIAL moving averages per stock (EMA50/EMA200,
+// with ~4 years of daily history), not simple DMAs — so "200 DMA" here is the stored EMA200.
+// Kept as-is rather than switching to simple averages, since only EMA history exists.
+// The api/cron-breadth.js copy of this formula must be kept in sync by hand.
+const REGIME_CONFIG = {
+  weights: { above200: 30, thrust: 25, highsLows: 25, pcr: 20 },
+  thresholds: { riskOn: 60, riskOff: 40 },   // >= riskOn → Risk-On, >= riskOff → Neutral, below → Risk-Off
+  avgDays: 5,                                 // rolling window for thrust and new highs/lows
+  pcr: { zeroAt: 0.7, midAt: 1.0, fullAt: 1.3, crowdedAbove: 1.6, crowdedCap: 70 },
+  names: {
+    above200: '% of Nifty 500 above 200 DMA',
+    thrust: 'Market thrust (advance/decline)',
+    highsLows: 'New highs vs new lows (52-wk)',
+    pcr: 'Nifty put-call ratio (OI)'
+  }
+};
 function clamp01to100(v){ return Math.max(0, Math.min(100, v)); }
-function vixFactor(vix){
-  if(isNaN(vix)) return null;
-  // 100 at calm (<=11), 0 at fearful (>=26), straight line between
-  return clamp01to100(100 - (vix-11)/(26-11)*100);
+// Piecewise-linear PCR → 0-100: zeroAt→0, midAt→50, fullAt→100, clamped at both ends, then
+// anything above crowdedAbove (extreme put writing = an overcrowded trade) is capped.
+function pcrScore(p){
+  if(p==null || isNaN(p)) return null;
+  const c = REGIME_CONFIG.pcr;
+  let s;
+  if(p <= c.zeroAt) s = 0;
+  else if(p <= c.midAt) s = (p - c.zeroAt) / (c.midAt - c.zeroAt) * 50;
+  else if(p < c.fullAt) s = 50 + (p - c.midAt) / (c.fullAt - c.midAt) * 50;
+  else s = 100;
+  if(p > c.crowdedAbove) s = Math.min(s, c.crowdedCap);
+  return s;
 }
-// Shared by both %-above-50-EMA and %-above-200-EMA. Piecewise so 50% (half the universe
-// above its average — genuinely unremarkable) lands on 50, not ~73 like the old single-slope
-// version from a 10% floor to a 65% ceiling did — that skew alone was pushing most ordinary
-// days well into Risk-On territory regardless of what breadth actually looked like.
-function breadthFactor(pct){
-  if(pct==null || isNaN(pct)) return null;
-  if(pct <= 20) return pct/20*30; // 0 at 0%, 30 at 20%
-  if(pct <= 50) return 30 + (pct-20)/(50-20)*20; // 30 at 20%, 50 at 50% (neutral midpoint)
-  if(pct <= 75) return 50 + (pct-50)/(75-50)*50; // 50 at 50%, 100 at 75%+ (genuinely broad)
-  return 100 - (pct-75)/(100-75)*45; // eases back to 55 near 100% — overbought caution
+function regimeLabelForScore(score){
+  if(score >= REGIME_CONFIG.thresholds.riskOn) return 'Risk-On';
+  if(score >= REGIME_CONFIG.thresholds.riskOff) return 'Neutral';
+  return 'Risk-Off';
 }
-// Re-centered on PCR≈1.05 (textbook "neutral") with a wider 0.6-1.5 band (was 0.7-1.3) — the
-// old narrower band let PCR hit its 100-score ceiling too easily on unremarkable 1.2-1.3
-// readings, one of the contributors to an almost-always-bullish composite.
-function pcrFactor(pcr){
-  if(pcr==null || isNaN(pcr)) return null;
-  if(pcr <= 0.6) return 0;
-  if(pcr >= 1.5) return 100;
-  return (pcr - 0.6) / (1.5 - 0.6) * 100;
+// Average of fn(row) over the newest REGIME_CONFIG.avgDays rows that have a usable value
+// (rows are newest-first). Returns {value, n} or null if no row qualifies.
+function avgOverRecentRows(rows, fn){
+  const vals = [];
+  for(const r of rows){
+    const v = fn(r);
+    if(v!=null && !isNaN(v)) vals.push(v);
+    if(vals.length >= REGIME_CONFIG.avgDays) break;
+  }
+  return vals.length ? { value: vals.reduce((a,b)=>a+b,0)/vals.length, n: vals.length } : null;
 }
-// Continuous highs/lows ratio instead of a 3-value step — a 9-vs-1 day and a 6-vs-4 day used
-// to score identically (both "highs > lows" → 100); now they read as 90 and 60 respectively.
-function highsLowsFactor(newHighs, newLows){
-  if(isNaN(newHighs) || isNaN(newLows)) return null;
-  const total = newHighs + newLows;
-  if(total === 0) return 50; // no new highs or lows either way — genuinely neutral, not missing data
-  return newHighs / total * 100;
-}
-function nifty500Ema20Factor(close, ema20){
-  if(close==null || ema20==null || isNaN(close) || isNaN(ema20) || !ema20) return null;
-  const pctDiff = (close - ema20) / ema20 * 100;
-  // 0 at -3% below, 100 at +3% above, straight line between, clamped past either end
-  return clamp01to100(50 + pctDiff/3*50);
-}
-// New this round — today's whole-market advance/decline (the same live NSE data Market
-// Thrust's pie chart shows), giving the score genuine intraday responsiveness alongside the
-// mostly-EOD-cadence factors above.
-function marketThrustFactor(advances, declines){
-  if(advances==null || declines==null || isNaN(advances) || isNaN(declines)) return null;
-  const total = advances + declines;
-  if(!total) return null;
-  return advances / total * 100;
-}
-function computeRegimeScore(s){
-  const factors = {
-    vix: vixFactor(s.vix),
-    breadth50: breadthFactor(s.pctAbove50Ema),
-    breadth200: breadthFactor(s.pctAbove200Ema),
-    pcr: pcrFactor(s.pcr),
-    highsLows: highsLowsFactor(s.newHighs, s.newLows),
-    nifty500Ema20: nifty500Ema20Factor(s.nifty500Close, s.nifty500Ema20),
-    thrust: marketThrustFactor(s.thrustAdvances, s.thrustDeclines)
-  };
-  if(Object.keys(REGIME_WEIGHTS).some(k=>factors[k]==null)) return { score:null, label:null, factors };
-  const totalWeight = Object.values(REGIME_WEIGHTS).reduce((a,b)=>a+b,0);
-  const weighted = Object.keys(REGIME_WEIGHTS).reduce((a,k)=>a+factors[k]*REGIME_WEIGHTS[k],0);
-  const score = Math.round(weighted / totalWeight);
-  let label = 'Neutral';
-  if(score >= 65) label = 'Risk-On';
-  else if(score <= 35) label = 'Risk-Off';
-  return { score, label, factors };
-}
-// Incremental EMA20 of the Nifty 500 index itself, using yesterday's saved value
-// (currentRegime.nifty500Ema20) plus today's live close — mirrors the per-stock EMA
-// update in updateBreadthIfNeeded(), just scoped to market_regime instead of ema_state.
-const NIFTY500_EMA20_K = 2/21;
-function computeNifty500Ema20Today(){
-  if(liveRegime.nifty500Close==null) return null;
-  if(!currentRegime || isNaN(currentRegime.nifty500Ema20) || currentRegime.nifty500Ema20==null) return null;
-  return liveRegime.nifty500Close*NIFTY500_EMA20_K + currentRegime.nifty500Ema20*(1-NIFTY500_EMA20_K);
-}
-
-// Assembles computeRegimeScore()'s input object from the three independent sources it draws
-// on (liveRegime, breadthHistory, currentRegime) — shared by renderRegimeTab(),
-// autoSaveRegimeSnapshot(), and the Stocks tab's Fear/Greed gauge, which is just a relabeled
-// read of this same composite score (see renderFearGreed()) rather than a separate model.
-function gatherRegimeScoreInputs(){
+// All four score inputs as of a given trading date (null = latest). Everything except PCR
+// comes from stored market_breadth_history rows, so the score no longer depends on any live
+// fetch succeeding — it can be computed on weekends/holidays and re-computed for past days.
+function regimeInputsAsOf(asOfDate, pcr){
+  const rows = asOfDate ? breadthHistory.filter(r=>r.snapshotDate <= asOfDate) : breadthHistory;
+  const latest = rows[0] || null;
   return {
-    vix: numOrNaN(liveRegime.vix), pcr: liveRegime.pcr ?? null,
-    newHighs: numOrNaN(breadthHistory[0] ? breadthHistory[0].countNewHighN500 : null),
-    newLows: numOrNaN(breadthHistory[0] ? breadthHistory[0].countNewLowN500 : null),
-    pctAbove50Ema: breadthHistory[0] ? breadthHistory[0].pctAbove50Ema : null,
-    pctAbove200Ema: breadthHistory[0] ? breadthHistory[0].pctAbove200Ema : null,
-    nifty500Close: liveRegime.nifty500Close ?? null,
-    nifty500Ema20: computeNifty500Ema20Today(),
-    thrustAdvances: liveRegime.thrustAdvances ?? null, thrustDeclines: liveRegime.thrustDeclines ?? null
+    asOf: latest ? latest.snapshotDate : null,
+    above200: latest ? latest.pctAbove200Ema : null,
+    thrust: avgOverRecentRows(rows, r=>{
+      if(r.countAdvances==null || r.countDeclines==null) return null;
+      const t = r.countAdvances + r.countDeclines;
+      return t ? r.countAdvances / t * 100 : null;
+    }),
+    highsLows: avgOverRecentRows(rows, r=>{
+      if(r.countNewHighN500==null || r.countNewLowN500==null) return null;
+      const t = r.countNewHighN500 + r.countNewLowN500;
+      return t ? r.countNewHighN500 / t * 100 : 50; // no new highs or lows either way = balanced
+    }),
+    pcr: pcr==null ? null : pcr
   };
+}
+function computeRegimeScore(inp){
+  const W = REGIME_CONFIG.weights;
+  const raw = {
+    above200: inp.above200,
+    thrust: inp.thrust ? inp.thrust.value : null,
+    highsLows: inp.highsLows ? inp.highsLows.value : null,
+    pcr: inp.pcr
+  };
+  const score01 = {
+    above200: raw.above200==null ? null : clamp01to100(raw.above200),
+    thrust: raw.thrust==null ? null : clamp01to100(raw.thrust),
+    highsLows: raw.highsLows==null ? null : clamp01to100(raw.highsLows),
+    pcr: pcrScore(raw.pcr)
+  };
+  const totalWeight = Object.values(W).reduce((a,b)=>a+b,0);
+  const rawText = {
+    above200: raw.above200==null ? '—' : raw.above200.toFixed(1)+'%',
+    thrust: raw.thrust==null ? '—' : raw.thrust.toFixed(1)+'% ('+inp.thrust.n+'-day avg)',
+    highsLows: raw.highsLows==null ? '—' : raw.highsLows.toFixed(1)+'% ('+inp.highsLows.n+'-day avg)',
+    pcr: raw.pcr==null ? '—' : Number(raw.pcr).toFixed(2)
+  };
+  const components = Object.keys(W).map(key=>({
+    key, name: REGIME_CONFIG.names[key], weight: W[key], rawText: rawText[key],
+    score: score01[key],
+    contribution: score01[key]==null ? null : score01[key] * W[key] / totalWeight
+  }));
+  const missing = components.filter(c=>c.score==null).map(c=>c.key);
+  if(missing.length) return { score:null, label:null, components, missing, asOf: inp.asOf };
+  const score = Math.round(components.reduce((a,c)=>a+c.contribution,0));
+  return { score, label: regimeLabelForScore(score), components, missing: [], asOf: inp.asOf };
+}
+// Why a component can be missing, in words — shown instead of an unexplained "Scoring…".
+const REGIME_MISSING_HINT = {
+  above200: 'no breadth history row yet',
+  thrust: 'no stored advance/decline history yet',
+  highsLows: 'no stored new-high/new-low history yet',
+  pcr: 'PCR not fetched/saved yet'
+};
+// The PCR used right now: the live NSE value when we have it, else the last saved snapshot's.
+function currentPcr(){
+  if(liveRegime && liveRegime.pcr!=null) return liveRegime.pcr;
+  return currentRegime && currentRegime.pcr!=null ? currentRegime.pcr : null;
+}
+function computeCurrentRegime(){
+  return computeRegimeScore(regimeInputsAsOf(null, currentPcr()));
 }
 
 // NSE is closed every Saturday/Sunday, plus a handful of weekday holidays each year — on both,
@@ -1767,20 +1787,99 @@ function maybeAutoRefreshAtMarketOpen(){
 }
 setInterval(maybeAutoRefreshAtMarketOpen, 60000);
 
-// The score needs liveRegime (VIX/PCR/highs-lows/NIFTY500 close, one fetch) AND
-// breadthHistory[0] (% above 50 EMA, a separate daily pipeline) AND currentRegime's prior
-// nifty500Ema20 — these arrive from independent async chains with no ordering guarantee,
-// so this is called after each one resolves and only actually saves once, the first time
-// every input is ready (a module-level flag, reset per page load, guards against saving twice).
+// ---------- tooltips ----------
+// One shared floating popover for every (i) icon. Native title="" tooltips were the root cause
+// of the "empty / not showing" (i) icons: the browser only paints them after a long hover
+// delay, never on touch, and not at all in embedded/in-app browser panes — so they looked
+// empty. This pop-over is positioned with fixed coordinates (so the overflow:auto cards can't
+// clip it), opens on hover, keyboard focus or click, and its text comes from TIPS[key].
+const TIPS = {};
+function tipIcon(key){
+  return `<span class="tip" tabindex="0" role="button" aria-label="More info" data-tip-key="${key}">ⓘ</span>`;
+}
+(function initTips(){
+  const pop = document.createElement('div');
+  pop.id = 'tip-pop';
+  document.body.appendChild(pop);
+  let activeEl = null;
+  function place(el){
+    const r = el.getBoundingClientRect();
+    const pw = pop.offsetWidth, ph = pop.offsetHeight;
+    let left = r.left + r.width/2 - pw/2;
+    left = Math.max(8, Math.min(left, window.innerWidth - pw - 8));
+    let top = r.bottom + 8;
+    if(top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 8);
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+  }
+  function show(el){
+    const t = TIPS[el.dataset.tipKey];
+    const html = typeof t === 'function' ? t() : t;
+    if(!html) return;
+    pop.innerHTML = html;
+    pop.style.display = 'block';
+    place(el);
+    activeEl = el;
+  }
+  function hide(){ pop.style.display = 'none'; activeEl = null; }
+  const tipOf = e => e.target && e.target.closest ? e.target.closest('.tip') : null;
+  document.addEventListener('mouseover', e=>{ const t = tipOf(e); if(t) show(t); });
+  document.addEventListener('mouseout', e=>{
+    const t = tipOf(e);
+    if(t && !(e.relatedTarget && t.contains(e.relatedTarget))) hide();
+  });
+  document.addEventListener('focusin', e=>{ const t = tipOf(e); if(t) show(t); });
+  document.addEventListener('focusout', e=>{ if(tipOf(e)) hide(); });
+  // capture phase: a (i) inside a clickable sort header must not also trigger the sort
+  document.addEventListener('click', e=>{
+    const t = tipOf(e);
+    if(t){ e.stopPropagation(); e.preventDefault(); if(activeEl === t) hide(); else show(t); }
+    else hide();
+  }, true);
+  window.addEventListener('scroll', hide, true);
+  window.addEventListener('resize', hide);
+})();
+
+// Plain-English explanation of the regime score, generated from REGIME_CONFIG so it can never
+// drift from what the code actually computes.
+TIPS.regime = ()=>{
+  const W = REGIME_CONFIG.weights, P = REGIME_CONFIG.pcr, T = REGIME_CONFIG.thresholds, N = REGIME_CONFIG.names;
+  return `<b>Regime score (0–100)</b><br>
+    A weighted blend of four market-health readings, each turned into a 0–100 score:<br>
+    • <b>${N.above200}</b> (${W.above200}%): the percentage itself — 62% above = 62.<br>
+    • <b>${N.thrust}</b> (${W.thrust}%): average share of stocks that rose, over the last ${REGIME_CONFIG.avgDays} trading days.<br>
+    • <b>${N.highsLows}</b> (${W.highsLows}%): new highs ÷ (new highs + new lows), averaged over ${REGIME_CONFIG.avgDays} days.<br>
+    • <b>${N.pcr}</b> (${W.pcr}%): ${P.zeroAt} → 0, ${P.midAt} → 50, ${P.fullAt} → 100 (straight line, clamped). Above ${P.crowdedAbove} it is capped at ${P.crowdedCap} — extreme put writing means the trade is overcrowded.<br>
+    <b>Score ≥ ${T.riskOn}</b> = Risk-On · <b>${T.riskOff}–${T.riskOn-1}</b> = Neutral · <b>below ${T.riskOff}</b> = Risk-Off.<br>
+    <i>"200 DMA" uses the exponential average this app stores for every stock.</i>`;
+};
+
+// Upsert that survives a not-yet-run migration: if the write fails because one of the
+// optional (newer) columns doesn't exist yet, retry once without those columns instead of
+// losing the whole save.
+async function upsertTolerant(table, row, opts, optionalCols){
+  let res = await sb.from(table).upsert(row, opts);
+  const msg = res.error ? String(res.error.message || '') : '';
+  if(res.error && optionalCols.some(c => msg.includes(c))){
+    const slim = Object.assign({}, row);
+    optionalCols.forEach(c => delete slim[c]);
+    res = await sb.from(table).upsert(slim, opts);
+  }
+  return res;
+}
+
+// A snapshot is the END-OF-DAY read, so it is only saved once today's breadth row exists
+// (the score is built from stored breadth rows + PCR — see computeRegimeScore). A module-level
+// flag guards against saving twice in one page load; api/cron-breadth.js saves the same row
+// every weekday evening even if the app is never opened.
 let regimeAutoSavedForDate = null;
 async function maybeAutoSaveRegime(){
   if(liveRegime.fetchError || liveRegime.marketClosed) return;
-  if(liveRegime.vix===undefined) return; // liveRegime not fetched yet
-  if(!breadthHistory || !breadthHistory[0]) return; // breadth pipeline not done yet
-  if(breadthHistory[0].countNewHighN500==null || breadthHistory[0].countNewLowN500==null) return; // 252-day window still warming up
-  if(computeNifty500Ema20Today()==null) return; // no prior EMA20 to roll forward from yet
+  if(!breadthHistory || !breadthHistory[0]) return;
   const today = new Date().toISOString().slice(0,10);
+  if(breadthHistory[0].snapshotDate !== today) return; // today's breadth not stored yet
   if(regimeAutoSavedForDate === today) return;
+  if(currentPcr()==null) return;
   regimeAutoSavedForDate = today;
   await autoSaveRegimeSnapshot();
 }
@@ -1788,17 +1887,17 @@ async function maybeAutoSaveRegime(){
 async function fetchLatestRegime(){
   const { data } = await sb.from('market_regime').select('*').order('snapshot_date', { ascending:false }).limit(1).maybeSingle();
   currentRegime = data ? {
-    snapshotDate:data.snapshot_date, vix:numOrNaN(data.vix), fiiNet:numOrNaN(data.fii_net), diiNet:numOrNaN(data.dii_net),
-    pcr:data.pcr, regimeLabel:data.regime_label, notes:data.notes||'',
-    nifty500Close:numOrNaN(data.nifty500_close), nifty500Ema20:numOrNaN(data.nifty500_ema20)
+    snapshotDate:data.snapshot_date, vix:numOrNaN(data.vix),
+    pcr:data.pcr, regimeLabel:data.regime_label, regimeScore:data.regime_score ?? null, notes:data.notes||'',
+    nifty500Close:numOrNaN(data.nifty500_close)
   } : null;
 }
 
 async function fetchRegimeHistory(){
-  const { data, error } = await sb.from('market_regime').select('*').order('snapshot_date', { ascending:false }).limit(30);
+  const { data, error } = await sb.from('market_regime').select('*').order('snapshot_date', { ascending:false }).limit(15);
   regimeHistory = error ? [] : data.map(d=>({
-    snapshotDate:d.snapshot_date, vix:numOrNaN(d.vix), fiiNet:numOrNaN(d.fii_net), diiNet:numOrNaN(d.dii_net),
-    pcr:d.pcr, regimeLabel:d.regime_label, notes:d.notes||''
+    snapshotDate:d.snapshot_date, vix:numOrNaN(d.vix),
+    pcr:d.pcr, regimeLabel:d.regime_label, regimeScore:d.regime_score ?? null
   }));
   renderRegimeHistory();
 }
@@ -1816,96 +1915,94 @@ function scoreClass(label){
 function weekdayLabel(dateStr){
   return new Date(dateStr+'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
 }
+const cleanNum = v => (v==null || (typeof v==='number' && isNaN(v))) ? null : v;
+
 function renderRegimeTab(){
-  // Both read liveRegime directly and degrade gracefully on their own (fetch error, market
-  // closed, or data not arrived yet) — called unconditionally here so Market Thrust/Sector
-  // Strength refresh on every live fetch, not just the "happy path" below.
   renderMarketThrust();
+  renderAdvDeclHistory();
   renderSectorStrength();
   renderWeeklyMovers();
-  renderFearGreed();
+  renderRegimeScorePanel();
 
-  const tile = (label, val, err) => `<div class="stat"><div class="num">${val==null?'-':(typeof val==='number'&&!Number.isInteger(val)?val.toFixed(2):val)}</div><div class="lbl">${label}${err?' <span class=\"flag\">'+err+'</span>':''}</div></div>`;
-  // FII/DII net flows: positive = net buying, negative = net selling — colored and labeled
-  // so the direction reads at a glance instead of just a signed number.
-  const flowTile = (label, val, err) => {
-    const known = val!=null && !isNaN(val);
-    const cls = known ? (val>=0 ? 'pos' : 'neg') : '';
-    const dir = known ? (val>=0 ? ' (Buy)' : ' (Sell)') : '';
-    return `<div class="stat"><div class="num ${cls}">${known?val.toFixed(2):'-'}</div><div class="lbl">${label}${dir}${err?' <span class=\"flag\">'+err+'</span>':''}</div></div>`;
-  };
-  const infoIcon = `<span class="info-icon" onclick="toggleRegimeInfo(event)" title="How this score is calculated">ⓘ</span>`;
+  const tile = (label, val, extra) => `<div class="stat"><div class="num">${val==null?'-':(typeof val==='number'&&!Number.isInteger(val)?val.toFixed(2):val)}</div><div class="lbl">${label}${extra||''}</div></div>`;
+  const live = !liveRegime.fetchError && !liveRegime.marketClosed && liveRegime.vix!==undefined;
+  const bh = breadthHistory[0] || null;
+  // Live values when NSE answered; otherwise the last saved snapshot, so the tab is never blank.
+  const vix = live ? cleanNum(liveRegime.vix) : (currentRegime ? cleanNum(currentRegime.vix) : null);
+  const pcr = currentPcr();
+  const scored = computeCurrentRegime();
 
+  let caption = '';
+  const fetchedEl = document.getElementById('regime-fetched-label');
   if(liveRegime.fetchError){
-    document.getElementById('regime-statgrid').innerHTML = `<div class="empty">Could not reach /api/regime: ${liveRegime.fetchError}</div>`;
-    document.getElementById('regime-fetched-label').textContent = '';
-    return;
+    caption = `Could not reach /api/regime (${liveRegime.fetchError}) — showing the last saved values.`;
+    fetchedEl.textContent = '';
+  } else if(liveRegime.marketClosed){
+    caption = currentRegime
+      ? `Market closed today — showing ${weekdayLabel(currentRegime.snapshotDate)}'s data (${currentRegime.snapshotDate}).`
+      : 'Market closed today. No saved snapshot yet.';
+    fetchedEl.textContent = '';
+  } else {
+    fetchedEl.textContent = liveRegime.fetchedAt ? ('Fetched at ' + new Date(liveRegime.fetchedAt).toLocaleTimeString('en-IN')) : '';
   }
-  if(liveRegime.marketClosed){
-    document.getElementById('regime-fetched-label').textContent = '';
-    // Rather than a blank "market closed" message, show the last trading day's actual
-    // numbers (from the saved market_regime/market_breadth_history rows) with an honest
-    // "showing <Weekday>'s data" label — same "degrade to last known good" pattern already
-    // used by Market Thrust/Sector Strength, just applied to the whole tile row this round.
-    if(!currentRegime){
-      const reasonText = liveRegime.marketClosed === 'weekend' ? 'Market closed (Saturday/Sunday)' : 'Market closed (holiday)';
-      document.getElementById('regime-statgrid').innerHTML = `<div class="empty">${reasonText}. No saved snapshot yet.</div>`;
-      return;
-    }
-    const newHighsN500 = breadthHistory[0] ? breadthHistory[0].countNewHighN500 : null;
-    const newLowsN500 = breadthHistory[0] ? breadthHistory[0].countNewLowN500 : null;
-    const scoreTile = `<div class="stat"><div class="num ${scoreClass(currentRegime.regimeLabel)}">${currentRegime.regimeLabel||'-'}</div><div class="lbl">Regime ${infoIcon}</div></div>`;
-    document.getElementById('regime-statgrid').innerHTML =
-      `<div class="save-note" style="grid-column:1/-1; margin-bottom:2px;">Market closed today — showing ${weekdayLabel(currentRegime.snapshotDate)}'s data (${currentRegime.snapshotDate}).</div>` +
-      tile('India VIX', currentRegime.vix, null) +
-      flowTile('FII Net (₹cr)', currentRegime.fiiNet, null) +
-      flowTile('DII Net (₹cr)', currentRegime.diiNet, null) +
-      tile('New Highs (NIFTY 500)', newHighsN500, null) +
-      tile('New Lows (NIFTY 500)', newLowsN500, null) +
-      tile('PCR', currentRegime.pcr, null) +
-      tile('FII Options PCR', null, null) +
-      scoreTile;
-    return;
-  }
-  const newHighsN500 = breadthHistory[0] ? breadthHistory[0].countNewHighN500 : null;
-  const newLowsN500 = breadthHistory[0] ? breadthHistory[0].countNewLowN500 : null;
-  const scored = computeRegimeScore(gatherRegimeScoreInputs());
-  document.getElementById('regime-fetched-label').textContent = liveRegime.fetchedAt ? ('Fetched at ' + new Date(liveRegime.fetchedAt).toLocaleTimeString('en-IN')) : '';
-  const scoreTile = scored.score==null
-    ? `<div class="stat"><div class="num">Scoring…</div><div class="lbl">Regime ${infoIcon}</div></div>`
-    : `<div class="stat"><div class="num ${scoreClass(scored.label)}">${scored.label}</div><div class="lbl">Regime (score ${scored.score}) ${infoIcon}</div></div>`;
+
+  const regimeTile = scored.score==null
+    ? `<div class="stat"><div class="num">—</div><div class="lbl">Regime ${tipIcon('regime')}</div></div>`
+    : `<div class="stat"><div class="num ${scoreClass(scored.label)}">${scored.label}</div><div class="lbl">Regime (score ${scored.score}) ${tipIcon('regime')}</div></div>`;
   document.getElementById('regime-statgrid').innerHTML =
-    tile('India VIX', liveRegime.vix, liveRegime.vixError) +
-    flowTile('FII Net (₹cr)', liveRegime.fiiNet, liveRegime.fiiDiiError) +
-    flowTile('DII Net (₹cr)', liveRegime.diiNet, liveRegime.fiiDiiError) +
-    tile('New Highs (NIFTY 500)', newHighsN500, null) +
-    tile('New Lows (NIFTY 500)', newLowsN500, null) +
-    tile('PCR', liveRegime.pcr, liveRegime.pcrError) +
-    tile('FII Options PCR', liveRegime.fiiOptionsPcr, liveRegime.fiiOptionsPcrError) +
-    scoreTile;
+    (caption ? `<div class="save-note" style="grid-column:1/-1; margin-bottom:2px;">${caption}</div>` : '') +
+    tile('India VIX', vix) +
+    tile('New Highs (NIFTY 500)', bh ? bh.countNewHighN500 : null) +
+    tile('New Lows (NIFTY 500)', bh ? bh.countNewLowN500 : null) +
+    tile('PCR', pcr) +
+    tile('FII Options PCR', live ? cleanNum(liveRegime.fiiOptionsPcr) : null) +
+    regimeTile;
 }
 
-// Auto-saves on every successful live fetch (tab-open and manual "Refresh from NSE") — the
-// user explicitly asked not to need a daily manual click here (unlike market_breadth_history,
-// which auto-saves for a different reason: it has no button at all to click). Upserts on
-// (user_id, snapshot_date) so re-saving the same day updates rather than duplicates. Fails
-// quietly (a status note, not alert()) — an unprompted popup on an automatic action would
-// be jarring, matching the same "degrade silently" spirit as updateBreadthIfNeeded().
-// new_highs/new_lows are deliberately NOT part of this payload any more — that data now
-// lives in market_breadth_history (count_newhigh_n500/count_newlow_n500), computed by the
-// breadth pipeline, not this live NSE fetch. The market_regime columns are left as legacy/
-// unused (same "don't force a destructive migration" convention as capital's lev_comm).
+// The score card at the bottom of the tab: big score + label, then one row per component with
+// its raw value, its 0-100 score, its weight and how many points it adds to the total.
+function renderRegimeScorePanel(){
+  const el = document.getElementById('regime-score-panel');
+  if(!el) return;
+  if(!breadthHistory.length){
+    el.innerHTML = '<div class="empty">Waiting for breadth history to load…</div>';
+    return;
+  }
+  const s = computeCurrentRegime();
+  const rows = s.components.map(c=>`<tr>
+      <td>${c.name}</td>
+      <td>${c.rawText}</td>
+      <td>${c.score==null ? '—' : c.score.toFixed(0)}</td>
+      <td>${c.weight}%</td>
+      <td><b>${c.contribution==null ? '—' : c.contribution.toFixed(1)}</b></td>
+    </tr>`).join('');
+  const head = s.score==null
+    ? `<div class="regime-score-head"><div class="regime-score-big">—</div><div><div class="regime-score-label">Score unavailable</div>
+        <div class="save-note" style="margin:0;">Missing: ${s.missing.map(k=>`${REGIME_CONFIG.names[k]} (${REGIME_MISSING_HINT[k]})`).join('; ')}.</div></div></div>`
+    : `<div class="regime-score-head"><div class="regime-score-big ${scoreClass(s.label)}">${s.score}</div><div>
+        <div class="regime-score-label ${scoreClass(s.label)}">${s.label}</div>
+        <div class="save-note" style="margin:0;">Based on data through ${s.asOf} · PCR ${liveRegime && liveRegime.pcr!=null ? 'live' : 'last saved'}</div></div></div>`;
+  el.innerHTML = head + `<table style="font-size:12px; margin-top:10px;">
+    <tr><th>Component</th><th>Raw value</th><th>Score</th><th>Weight</th><th>Adds</th></tr>
+    ${rows}
+    <tr><td colspan="4" style="text-align:right;"><b>Total</b></td><td><b>${s.score==null ? '—' : s.score}</b></td></tr>
+  </table>`;
+}
+
+// Saved once per trading day (evening, after the day's breadth row exists) — see
+// maybeAutoSaveRegime(). The score is stored alongside the label (regime_score, migration 008)
+// so the History table can show it; upsertTolerant() keeps working until that migration runs.
 async function autoSaveRegimeSnapshot(){
-  const inputs = gatherRegimeScoreInputs();
-  const scored = computeRegimeScore(inputs);
+  const scored = computeCurrentRegime();
   const row = {
     user_id: session.user.id,
     snapshot_date: new Date().toISOString().slice(0,10),
-    vix: liveRegime.vix ?? null, fii_net: liveRegime.fiiNet ?? null, dii_net: liveRegime.diiNet ?? null,
-    pcr: inputs.pcr, regime_label: scored.label,
-    nifty500_close: liveRegime.nifty500Close ?? null, nifty500_ema20: inputs.nifty500Ema20
+    vix: cleanNum(liveRegime.vix) ?? null,
+    pcr: currentPcr(),
+    regime_label: scored.label, regime_score: scored.score,
+    nifty500_close: liveRegime.nifty500Close ?? null
   };
-  const { error } = await sb.from('market_regime').upsert(row, { onConflict: 'user_id,snapshot_date' });
+  const { error } = await upsertTolerant('market_regime', row, { onConflict: 'user_id,snapshot_date' }, ['regime_score']);
   const savedEl = document.getElementById('regime-saved');
   if(error){ savedEl.textContent = 'Could not auto-save: '+error.message; return; }
   savedEl.textContent = 'Auto-saved ' + new Date().toLocaleTimeString('en-IN');
@@ -1914,21 +2011,29 @@ async function autoSaveRegimeSnapshot(){
   renderJournal();
 }
 
+// Last 15 saved days. Each row's score is re-derived from stored breadth rows + that day's PCR
+// with the CURRENT formula whenever those inputs exist (so old rows saved under earlier
+// formulas — or saved with a null label — are shown consistently); otherwise the stored score.
+// Rows whose inputs no longer exist (e.g. advance/decline history pre-dates its storage) show —.
 function renderRegimeHistory(){
   const el = document.getElementById('regime-history');
   if(regimeHistory.length===0){
     el.innerHTML = '<div class="empty">No saved snapshots yet.</div>';
     return;
   }
-  el.innerHTML = '<table><tr><th>Date</th><th>VIX</th><th>FII Net</th><th>DII Net</th><th>PCR</th><th>Regime</th></tr>' +
-    regimeHistory.map(r=>`<tr>
-      <td>${r.snapshotDate}</td>
-      <td>${isNaN(r.vix)?'-':r.vix}</td>
-      <td class="${isNaN(r.fiiNet)?'':(r.fiiNet>=0?'pos':'neg')}">${isNaN(r.fiiNet)?'-':r.fiiNet}</td>
-      <td class="${isNaN(r.diiNet)?'':(r.diiNet>=0?'pos':'neg')}">${isNaN(r.diiNet)?'-':r.diiNet}</td>
-      <td>${r.pcr==null?'-':r.pcr.toFixed(2)}</td>
-      <td class="${scoreClass(r.regimeLabel)}">${r.regimeLabel||'-'}</td>
-    </tr>`).join('') + '</table>';
+  el.innerHTML = '<table><tr><th>Date</th><th>VIX</th><th>PCR</th><th>Score</th><th>Regime</th></tr>' +
+    regimeHistory.map(r=>{
+      const re = computeRegimeScore(regimeInputsAsOf(r.snapshotDate, r.pcr));
+      const score = re.score!=null ? re.score : r.regimeScore;
+      const label = re.score!=null ? re.label : (r.regimeScore!=null ? regimeLabelForScore(r.regimeScore) : null);
+      return `<tr>
+        <td>${r.snapshotDate}</td>
+        <td>${isNaN(r.vix)?'-':r.vix}</td>
+        <td>${r.pcr==null?'-':r.pcr.toFixed(2)}</td>
+        <td>${score==null?'-':score}</td>
+        <td class="${scoreClass(label)}">${label||'-'}</td>
+      </tr>`;
+    }).join('') + '</table>';
 }
 
 // ---------- charts ----------
@@ -1977,24 +2082,63 @@ async function fetchBreadthHistory(){
     countUp20_5d: d.count_up20_5d, countUp30_5d: d.count_up30_5d,
     countUp4pctVol: d.count_up4pct_vol, countDown4pctVol: d.count_down4pct_vol,
     countNewHighN500: d.count_newhigh_n500, countNewLowN500: d.count_newlow_n500,
-    countAdvances: d.count_advances, countDeclines: d.count_declines
+    countAdvances: d.count_advances, countDeclines: d.count_declines, countUnchanged: d.count_unchanged ?? null
   }));
+  renderBreadthToggles();
   renderBreadthCharts();
   renderMarketThrust();
   renderAdvDeclHistory();
+  renderRegimeScorePanel();
+  renderRegimeHistory();
+}
+
+// Daily = the stored per-day series. Weekly = the SAME series sampled at each week's last
+// trading day (the Friday close, or Thursday etc. when Friday was a holiday). That is the
+// "50/200 DMA sampled on Friday closes" option: the app stores per-stock moving-average STATE,
+// not weekly bars, and a true 50-week MA needs ~250 weekly closes per stock (200 weeks for the
+// 200 version) that aren't stored — whereas the daily series goes back ~4 years and samples
+// cleanly.
+let breadthChartMode = { '50': 'daily', '200': 'daily' };
+function weekKey(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  const dow = d.getDay() || 7;             // Mon=1 … Sun=7
+  d.setDate(d.getDate() - (dow-1));         // back to that week's Monday
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function weeklySample(ascRows){
+  const out = []; let lastKey = null;
+  ascRows.forEach(r=>{
+    const k = weekKey(r.snapshotDate);
+    if(k === lastKey) out[out.length-1] = r; else { out.push(r); lastKey = k; }
+  });
+  return out;
+}
+function setBreadthMode(which, mode){
+  breadthChartMode[which] = mode;
+  renderBreadthToggles();
+  renderBreadthCharts();
+}
+function renderBreadthToggles(){
+  ['50','200'].forEach(w=>{
+    const el = document.getElementById('toggle-above-'+w);
+    if(!el) return;
+    el.innerHTML = ['daily','weekly'].map(m=>
+      `<button class="${breadthChartMode[w]===m?'active':''}" onclick="setBreadthMode('${w}','${m}')">${m==='daily'?'Daily':'Weekly'}</button>`).join('');
+  });
 }
 
 function renderBreadthCharts(){
   const asc = breadthHistory.slice().reverse();
+  const pick = w => breadthChartMode[w]==='weekly' ? weeklySample(asc) : asc;
   const { series: s50 } = getOrCreateChart('chart-above-50ema', {
     pct: { type:'Area', options:{ lineColor: chartColor('--amber'), topColor:'rgba(232,163,61,0.3)', bottomColor:'rgba(232,163,61,0)' } }
   });
-  s50.pct.setData(asc.filter(r=>r.pctAbove50Ema!=null).map(r=>({time:r.snapshotDate, value:r.pctAbove50Ema})));
+  s50.pct.setData(pick('50').filter(r=>r.pctAbove50Ema!=null).map(r=>({time:r.snapshotDate, value:r.pctAbove50Ema})));
 
   const { series: s200 } = getOrCreateChart('chart-above-200ema', {
     pct: { type:'Area', options:{ lineColor: chartColor('--green'), topColor:'rgba(95,184,122,0.3)', bottomColor:'rgba(95,184,122,0)' } }
   });
-  s200.pct.setData(asc.filter(r=>r.pctAbove200Ema!=null).map(r=>({time:r.snapshotDate, value:r.pctAbove200Ema})));
+  s200.pct.setData(pick('200').filter(r=>r.pctAbove200Ema!=null).map(r=>({time:r.snapshotDate, value:r.pctAbove200Ema})));
 
   const { series: sMove5d } = getOrCreateChart('chart-move-5d', {
     up20: { type:'Histogram', options:{ color: chartColor('--amber'), priceFormat:{type:'volume'} } },
@@ -2057,42 +2201,41 @@ function renderMarketThrust(){
   `;
 }
 
-// Last 5 trading days with real advance/decline data (older backfilled days may not have
-// it — Market Thrust is a today-only stat by design, see nse-market-data skill — so this
-// filters to rows that actually have both counts rather than assuming the top 5 rows do).
+// Last 30 trading days of whole-market breadth, newest first. Only the first ~5 rows are
+// visible: the card has a fixed height and scrolls inside itself, so the page doesn't get
+// longer. Only days with stored advance/decline counts appear (rows saved before that data was
+// being stored simply don't have it); "Unch" is blank for days saved before migration 008.
 function renderAdvDeclHistory(){
   const container = document.getElementById('market-thrust-history');
   if(!container) return;
-  const rows = breadthHistory.filter(r=>r.countAdvances!=null && r.countDeclines!=null).slice(0,5);
+  const rows = breadthHistory.filter(r=>r.countAdvances!=null && r.countDeclines!=null).slice(0,30);
   if(rows.length===0){
     container.innerHTML = '';
     return;
   }
   container.innerHTML = `
-    <div class="save-note" style="margin-bottom:6px;">Last ${rows.length} trading day${rows.length>1?'s':''}</div>
+    <div class="save-note" style="margin-bottom:6px;">Last ${rows.length} trading day${rows.length>1?'s':''} · latest first · scroll for older days</div>
+    <div class="thrust-scroll">
     <table style="font-size:11px;">
-      <tr><th>Date</th><th>Adv</th><th>Dec</th><th>Adv %</th></tr>
-      ${rows.map(r=>{
-        const total = r.countAdvances + r.countDeclines;
-        const pct = total ? (r.countAdvances/total*100) : 0;
+      <thead><tr><th>Date</th><th>Adv</th><th>Dec</th><th>Unch</th><th>A/D</th></tr></thead>
+      <tbody>${rows.map(r=>{
+        const ratio = r.countDeclines ? (r.countAdvances/r.countDeclines) : null;
         return `<tr>
           <td>${r.snapshotDate}</td>
           <td class="pos">${r.countAdvances}</td>
           <td class="neg">${r.countDeclines}</td>
-          <td class="${pct>=50?'pos':'neg'}">${pct.toFixed(0)}%</td>
+          <td>${r.countUnchanged==null ? '–' : r.countUnchanged}</td>
+          <td class="${ratio==null ? '' : (ratio>=1?'pos':'neg')}">${ratio==null ? '–' : ratio.toFixed(2)}</td>
         </tr>`;
-      }).join('')}
-    </table>
-  `;
+      }).join('')}</tbody>
+    </table></div>`;
 }
 
 // ---------- sector strength ----------
-// Pure client-side aggregation — zero new serverless calls or DB writes. sectorsData is a
-// static, manually-refreshed constituent map (sectors.json, same convention as nifty500.json);
-// emaStateCache is ema_state's jsonb blob, already refreshed daily by updateBreadthIfNeeded().
-// A sector symbol with no emaStateCache entry (outside the tracked NIFTY 500 universe, or a
-// stock too new to have a seeded EMA200) is silently skipped from that sector's count —
-// same "don't fabricate data for untracked symbols" rule used elsewhere in this file.
+// Pure client-side aggregation of the already-stored per-stock state (ema_state) against
+// sectors.json's constituent lists — no extra fetch. A sector symbol with no stored state
+// (outside the tracked NIFTY 500 universe, or too new for a seeded 200-day average) is skipped
+// from that sector's denominator rather than guessed at.
 let sectorsData = null;
 let fnoUniverse = null;
 function sectorBarColor(pct){
@@ -2102,16 +2245,14 @@ function sectorBarColor(pct){
 }
 // IBD-style RS Rating: each symbol's trailing ~3-month (66 trading day) return, percentile-
 // ranked (1-99) against every other symbol with a full window — inherently relative to the
-// tracked universe, no separate benchmark subtraction needed. Recomputed fresh on every
-// render (cheap — under 500 symbols) rather than cached, since emaStateCache only changes
-// once per trading day anyway.
+// tracked universe, no separate benchmark subtraction needed.
 function computeRSRatings(){
   if(!emaStateCache) return {};
   const returns = {};
   Object.keys(emaStateCache).forEach(sym=>{
     const st = emaStateCache[sym];
     const rc = st.rsCloses;
-    if(!Array.isArray(rc) || rc.length < 66 || !rc[0] || st.lastClose==null) return;
+    if(!Array.isArray(rc) || rc.length < RS_WINDOW ||!rc[0] || st.lastClose==null) return;
     returns[sym] = (st.lastClose - rc[0]) / rc[0] * 100;
   });
   const syms = Object.keys(returns).sort((a,b)=>returns[a]-returns[b]);
@@ -2123,60 +2264,54 @@ function computeRSRatings(){
 function rsRatingClass(r){
   return r>=70 ? 'pos' : (r<=30 ? 'neg' : '');
 }
-function toggleSectorDetail(i){
-  const el = document.getElementById('sector-detail-'+i);
+function toggleSectorDetail(id){
+  const el = document.getElementById(id);
   if(el) el.classList.toggle('open');
 }
-// Live source: NSE's allIndices endpoint carries an advances/declines count per sector
-// index that updates throughout the trading day (see api/regime.js's SECTOR_INDEX_MAP) —
-// this is what makes the panel genuinely real-time instead of only updating once the EOD
-// bhavcopy is published in the evening.
-function computeSectorPctAdvancing(){
-  const advDecl = liveRegime && !liveRegime.fetchError && !liveRegime.marketClosed ? liveRegime.sectorAdvDecl : null;
-  if(!advDecl) return null;
-  const out = {};
-  Object.keys(advDecl).forEach(sector=>{
-    const d = advDecl[sector];
-    const total = (d.advances||0) + (d.declines||0);
-    if(total) out[sector] = { pct: d.advances/total*100, mode:'live', advances:d.advances, declines:d.declines };
-  });
-  return Object.keys(out).length ? out : null;
+// EMA of a close series, seeded with the SMA of the first `period` closes — used for the
+// 20-day average (only the 50/200 EMAs are stored per stock; 20 is derived from close252).
+function emaFromSeries(arr, period){
+  if(!Array.isArray(arr) || arr.length < period) return null;
+  const k = 2/(period+1);
+  let e = arr.slice(0,period).reduce((a,b)=>a+b,0)/period;
+  for(let i=period; i<arr.length; i++) e = arr[i]*k + e*(1-k);
+  return e;
 }
-// Fallback when live data isn't available (market closed, fetch error) — the older
-// %-above-200-EMA measure, computed from the daily breadth pipeline's ema_state cache.
-// Still a legitimate trend read, just not intraday-live, so it's a graceful degrade rather
-// than showing nothing.
-function computeSectorPctAboveEma(){
+const EMA200_K = 2/201;
+// Per sector: share of its tracked stocks above their 200-day and 20-day average, plus the
+// same two numbers one week (5 trading days) ago for the week-over-week change. Last week's
+// 200-day average is recovered EXACTLY by stepping today's stored EMA200 back five days
+// (EMA_prev = (EMA - k·price) / (1-k)); the 20-day one is recomputed on the shorter series.
+function computeSectorMaStats(){
   if(!sectorsData || !emaStateCache) return null;
-  const out = {};
+  const out = [];
   Object.keys(sectorsData).forEach(sector=>{
-    let above = 0, counted = 0;
+    let n=0, a200=0, a20=0, nPrev=0, p200=0, p20=0;
     sectorsData[sector].forEach(sym=>{
       const st = emaStateCache[sym];
-      if(!st || st.ema200==null || st.lastClose==null) return;
-      counted++;
-      if(st.lastClose > st.ema200) above++;
+      const c = st && st.close252;
+      if(!st || st.ema200==null || !Array.isArray(c) || c.length < 30) return;
+      const len = c.length, last = c[len-1];
+      const e20 = emaFromSeries(c, 20);
+      if(e20==null) return;
+      n++;
+      if(last > st.ema200) a200++;
+      if(last > e20) a20++;
+      let e = st.ema200;
+      for(let i=len-1; i>=len-5; i--) e = (e - EMA200_K*c[i])/(1-EMA200_K);
+      const e20p = emaFromSeries(c.slice(0,len-5), 20);
+      const pPrev = c[len-6];
+      if(e20p!=null && pPrev!=null){ nPrev++; if(pPrev > e) p200++; if(pPrev > e20p) p20++; }
     });
-    if(counted) out[sector] = { pct: above/counted*100, mode:'ema200' };
+    if(n >= 3) out.push({
+      sector, n, pct200: a200/n*100, pct20: a20/n*100,
+      prev: nPrev ? { pct200: p200/nPrev*100, pct20: p20/nPrev*100 } : null
+    });
   });
-  return Object.keys(out).length ? out : null;
+  return out.length ? out : null;
 }
-function renderSectorStrength(){
-  const container = document.getElementById('sector-strength-panel');
-  if(!container) return; // not on the Market Regime view
-  const live = computeSectorPctAdvancing();
-  const data = live || computeSectorPctAboveEma();
-  if(!data){
-    container.innerHTML = '<div class="empty">Loading sector data…</div>';
-    return;
-  }
-  const rsRatings = computeRSRatings();
-  const rows = Object.keys(data).map(sector=>Object.assign({sector}, data[sector])).sort((a,b)=>b.pct-a.pct);
-  const freshnessNote = live
-    ? `<div class="save-note" style="margin-bottom:10px;">Live · % advancing today · ${liveRegime.fetchedAt ? new Date(liveRegime.fetchedAt).toLocaleTimeString('en-IN') : 'just now'}</div>`
-    : `<div class="save-note" style="margin-bottom:10px;">% above 200-EMA (as of last close) — live data unavailable</div>`;
-
-  container.innerHTML = freshnessNote + rows.map((r,i)=>{
+function sectorBarsHtml(stats, key, idPrefix, rsRatings){
+  return stats.slice().sort((a,b)=>b[key]-a[key]).map((r,i)=>{
     const top10 = ((sectorsData && sectorsData[r.sector]) || [])
       .filter(sym=>rsRatings[sym]!=null)
       .sort((a,b)=>rsRatings[b]-rsRatings[a])
@@ -2187,73 +2322,68 @@ function renderSectorStrength(){
         <span class="sector-detail-rs ${rsRatingClass(rsRatings[sym])}">${rsRatings[sym]}</span>
       </div>
     `).join('') : '<div class="empty" style="padding:6px 0;">RS Rating needs ~3 more months of tracked history to warm up.</div>';
-    const subhead = r.mode==='live' ? `${r.advances} advancing / ${r.declines} declining today` : `% of constituents above their 200-day EMA`;
+    const id = `${idPrefix}-${i}`;
     return `
-    <div class="sector-bar-row" onclick="toggleSectorDetail(${i})">
+    <div class="sector-bar-row" onclick="toggleSectorDetail('${id}')">
       <div class="sector-bar-label">${r.sector}</div>
-      <div class="sector-bar-track"><div class="sector-bar-fill" style="width:${r.pct.toFixed(0)}%; background:${sectorBarColor(r.pct)}"></div></div>
-      <div class="sector-bar-pct">${r.pct.toFixed(0)}%</div>
+      <div class="sector-bar-track"><div class="sector-bar-fill" style="width:${r[key].toFixed(0)}%; background:${sectorBarColor(r[key])}"></div></div>
+      <div class="sector-bar-pct">${r[key].toFixed(0)}%</div>
     </div>
-    <div class="sector-detail" id="sector-detail-${i}">
-      <div class="sector-detail-header">${subhead} · Top ${top10.length || 0} by RS Rating (1–99, ~3-month return percentile vs. tracked universe)</div>
+    <div class="sector-detail" id="${id}">
+      <div class="sector-detail-header">${r.n} stocks tracked · top ${top10.length || 0} by RS Rating (1–99, ~3-month return percentile)</div>
       ${detailRows}
     </div>`;
   }).join('');
 }
+function renderSectorStrength(){
+  const container = document.getElementById('sector-strength-panel');
+  if(!container) return; // not on the Market Regime view
+  const stats = computeSectorMaStats();
+  if(!stats){
+    container.innerHTML = '<div class="empty">Loading sector data…</div>';
+    return;
+  }
+  const rs = computeRSRatings();
+  const anyState = Object.values(emaStateCache).find(s=>s && s.lastDate);
+  container.innerHTML = `
+    <div class="sector-section-title">Positional (long term) · % of stocks above 200 DMA</div>
+    ${sectorBarsHtml(stats, 'pct200', 'sd200', rs)}
+    <div class="sector-section-title" style="margin-top:16px;">Medium term · % of stocks above 20 DMA</div>
+    ${sectorBarsHtml(stats, 'pct20', 'sd20', rs)}
+    <div class="save-note" style="margin-top:8px;">As of ${anyState ? anyState.lastDate : 'last close'} · click a sector for its strongest stocks</div>`;
+}
 
 // ---------- weekly top/worst movers ----------
-// Reuses ema_state's rsCloses (66 trading days ≈ 3 months, already maintained for RS Rating)
-// instead of fetching or storing anything new — a trading week is 5 trading days, so slicing
-// that same array in 5-day chunks from the end gives up to ~13 weekly buckets for free.
-// weeksBack=0 is the most recent 5 trading days ("This Week"), 1 is the 5 before that, etc.
-// Sector-level, not per-stock (changed this round, per request) — a sector's weekly return
-// is the average of its tracked constituents' weekly returns (same rsCloses 5-day-chunk
-// slicing as before, just aggregated by sectors.json's grouping instead of ranking individual
-// symbols). Needs both sectorsData (constituent lists) and emaStateCache (rsCloses).
-function computeWeeklySectorMovers(weeksBack){
-  if(!emaStateCache || !sectorsData) return null;
-  const weeks = [];
-  for(let w=0; w<weeksBack; w++){
-    const sectorRets = [];
-    Object.keys(sectorsData).forEach(sector=>{
-      const rets = [];
-      sectorsData[sector].forEach(sym=>{
-        const st = emaStateCache[sym];
-        const rc = st && st.rsCloses;
-        if(!Array.isArray(rc)) return;
-        const endIdx = rc.length - 1 - w*5;
-        const startIdx = endIdx - 5;
-        if(startIdx < 0 || !rc[startIdx]) return;
-        rets.push((rc[endIdx]-rc[startIdx])/rc[startIdx]*100);
-      });
-      if(rets.length) sectorRets.push({ sector, ret: rets.reduce((a,b)=>a+b,0)/rets.length });
-    });
-    if(!sectorRets.length) continue; // not enough history yet for this far back — stop, don't show a gap
-    sectorRets.sort((a,b)=>b.ret-a.ret);
-    weeks.push({
-      label: w===0 ? 'This Week' : w===1 ? 'Last Week' : `${w} Weeks Ago`,
-      top: sectorRets.slice(0,2),
-      worst: sectorRets.slice(-2).reverse()
-    });
-  }
-  return weeks;
-}
+// Sectors ranked by a combined score = average of (% above 200 DMA) and (% above 20 DMA), top 5
+// and bottom 5, with the change in that combined score versus one week (5 trading days) ago.
 function renderWeeklyMovers(){
   const container = document.getElementById('weekly-movers-panel');
   if(!container) return; // not on the Market Regime view
-  const weeks = computeWeeklySectorMovers(3);
-  if(!weeks || !weeks.length){
-    container.innerHTML = '<div class="empty">Needs a few more weeks of tracked history.</div>';
+  const stats = computeSectorMaStats();
+  if(!stats){
+    container.innerHTML = '<div class="empty">Loading sector data…</div>';
     return;
   }
-  container.innerHTML = `<table style="font-size:11px;">
-    <tr><th>Week</th><th>Top 2</th><th>Worst 2</th></tr>
-    ${weeks.map(w=>`<tr>
-      <td>${w.label}</td>
-      <td class="pos">${w.top.map(t=>`${t.sector} +${t.ret.toFixed(1)}%`).join(', ')}</td>
-      <td class="neg">${w.worst.map(t=>`${t.sector} ${t.ret.toFixed(1)}%`).join(', ')}</td>
-    </tr>`).join('')}
-  </table>`;
+  const ranked = stats.map(s=>{
+    const score = (s.pct200 + s.pct20) / 2;
+    const prev = s.prev ? (s.prev.pct200 + s.prev.pct20) / 2 : null;
+    return { sector: s.sector, score, delta: prev==null ? null : score - prev };
+  }).sort((a,b)=>b.score-a.score);
+  const rowsHtml = (list, startRank) => list.map((r,i)=>`<tr>
+      <td>${startRank+i}</td><td>${r.sector}</td>
+      <td>${r.score.toFixed(0)}</td>
+      <td class="${r.delta==null ? '' : (r.delta>=0?'pos':'neg')}">${r.delta==null ? '–' : (r.delta>=0?'+':'')+r.delta.toFixed(1)}</td>
+    </tr>`).join('');
+  const head = '<tr><th>#</th><th>Sector</th><th>Score</th><th>Δ vs last wk</th></tr>';
+  const n = ranked.length;
+  const top = ranked.slice(0, Math.min(5, n));
+  const bottom = n > 5 ? ranked.slice(Math.max(5, n-5)) : [];
+  container.innerHTML = `
+    <div class="sector-section-title pos">Top 5</div>
+    <table style="font-size:12px;">${head}${rowsHtml(top, 1)}</table>
+    ${bottom.length ? `<div class="sector-section-title neg" style="margin-top:12px;">Bottom 5</div>
+    <table style="font-size:12px;">${head}${rowsHtml(bottom, n-bottom.length+1)}</table>` : ''}
+    <div class="save-note" style="margin-top:8px;">Score = average of % above 200 DMA and % above 20 DMA; Δ is in score points versus 5 trading days ago.</div>`;
 }
 fetch('/sectors.json').then(r=>r.json()).then(d=>{ sectorsData = d; renderSectorStrength(); }).catch(()=>{ /* panel just shows "Loading…" indefinitely — non-critical, static asset */ });
 fetch('/fo_universe.json').then(r=>r.json()).then(d=>{ fnoUniverse = new Set(d); renderSectorStrength(); }).catch(()=>{ /* F&O badges just never show — non-critical, static asset */ });
@@ -2269,63 +2399,12 @@ function isHttpUrl(u){
   return typeof u==='string' && /^https?:\/\//i.test(u);
 }
 
-// Fear & Greed is deliberately not a separate model — it's the same weighted composite as
-// the Market Regime tab's score (see computeRegimeScore()/gatherRegimeScoreInputs()), just
-// relabeled with the classic 5-band Fear/Greed framing. Google Trends has no reliable free
-// finance-sentiment API (its old unofficial dailytrends endpoint 404s as of this round — see
-// nse-market-data skill) — this reuses data we already trust instead of a fragile scrape.
-function fearGreedLabel(score){
-  if(score>=80) return 'Extreme Greed';
-  if(score>=60) return 'Greed';
-  if(score>=40) return 'Neutral';
-  if(score>=20) return 'Fear';
-  return 'Extreme Fear';
-}
-// Maps the 3-bucket regime label to Fear/Greed wording — used as the closed-market fallback,
-// since only the label (not the numeric score) is persisted in market_regime for past days.
-function fearGreedLabelFromRegimeLabel(label){
-  if(label==='Risk-On') return 'Greed';
-  if(label==='Risk-Off') return 'Fear';
-  return 'Neutral';
-}
-function renderFearGreed(){
-  const container = document.getElementById('fear-greed-panel');
-  if(!container) return; // not on the Stocks view
-  const live = !liveRegime.fetchError && !liveRegime.marketClosed && liveRegime.vix!==undefined;
-  if(live){
-    const scored = computeRegimeScore(gatherRegimeScoreInputs());
-    if(scored.score==null){
-      container.innerHTML = '<div class="empty">Scoring… (needs a few more inputs to arrive)</div>';
-      return;
-    }
-    const cls = scoreClass(scored.label);
-    container.innerHTML = `
-      <div style="text-align:center; padding:4px 0;">
-        <div class="${cls}" style="font-size:32px; font-weight:bold; line-height:1;">${scored.score}</div>
-        <div class="${cls}" style="font-size:13px; font-weight:bold; margin-top:4px;">${fearGreedLabel(scored.score)}</div>
-        <div class="save-note" style="margin-top:8px;">Same composite as the Market Regime tab's score (0 = Extreme Fear, 100 = Extreme Greed).</div>
-      </div>
-    `;
-    return;
-  }
-  // Market closed (or live data hasn't arrived yet) — fall back to the last saved label.
-  // No numeric score for past days (market_regime only persists the 3-bucket label, not the
-  // 0-100 composite), so this shows the label only, honestly captioned with which day it's from.
-  if(!currentRegime || !currentRegime.regimeLabel){
-    container.innerHTML = '<div class="empty">Waiting for live regime data…</div>';
-    return;
-  }
-  const cls = scoreClass(currentRegime.regimeLabel);
-  container.innerHTML = `
-    <div style="text-align:center; padding:4px 0;">
-      <div class="${cls}" style="font-size:20px; font-weight:bold;">${fearGreedLabelFromRegimeLabel(currentRegime.regimeLabel)}</div>
-      <div class="save-note" style="margin-top:8px;">Market closed — showing ${weekdayLabel(currentRegime.snapshotDate)}'s regime (${currentRegime.snapshotDate}). No live score until the next trading session.</div>
-    </div>
-  `;
-}
-
-// News + trending searches — one combined fetch (api/news.js), refreshed on Stocks tab-open
-// only (unlike Fear/Greed's underlying data, a news feed doesn't need a 60s auto-refresh).
+// ---------- market news + news-based Fear & Greed ----------
+// One fetch (api/news.js) returns the last ~48h of headlines from Reuters, Economic Times,
+// Business Standard, Mint, CNBC TV18 and Moneycontrol, already de-duplicated, each scored
+// −1..+1 by a finance word-list (no LLM API in this project), plus the 0–100 gauge computed from
+// them (recency half-life + source weight, see api/news.js NEWS_CONFIG). Refreshed on Stocks
+// tab-open and on watchlist changes; the server caches scores and the response for 5 minutes.
 let newsData = null;
 async function fetchNews(){
   try {
@@ -2336,13 +2415,65 @@ async function fetchNews(){
     newsData = { fetchError: e.message || String(e) };
   }
   renderNewsPanel();
-  renderTrendingPanel();
   renderWatchlistNews();
 }
-// Google News RSS often returns several near-duplicate headlines about the same story from
-// different outlets — sort newest-first, then drop anything whose first few words match a
-// title already kept, so the short list that actually renders is the latest *distinct* news,
-// not five outlets covering the identical story.
+TIPS.news = ()=>{
+  const c = (newsData && newsData.config) || { halfLifeHours: 12, windowHours: 48, bands: [[24,'Extreme Fear'],[44,'Fear'],[55,'Neutral'],[75,'Greed'],[100,'Extreme Greed']] };
+  let lo = 0;
+  const bands = c.bands.map(([hi,name])=>{ const s = `${lo}–${hi}: ${name}`; lo = hi+1; return s; }).join('<br>');
+  return `<b>News Fear &amp; Greed (0–100)</b><br>
+    Reads the market headlines from the last ${c.windowHours} hours (Reuters, Economic Times, Business Standard, Mint, CNBC TV18, Moneycontrol) and asks: is the news mood fearful or greedy?<br><br>
+    <b>1.</b> Each headline gets a score from −1 (fear: crash, selloff, slump, war…) to +1 (greed: rally, record high, surge…) using a finance word list. Plain facts score 0.<br>
+    <b>2.</b> Newer headlines count more — a headline's weight halves every ${c.halfLifeHours} hours — and each outlet has a quality weight. Neutral headlines count for less so they don't drown the signal.<br>
+    <b>3.</b> The weighted average is mapped onto 0–100 (50 = no lean).<br><br>
+    ${bands}<br><br>
+    <i>A word-list reader is crude: it can miss sarcasm or context, so treat it as a mood gauge, not a signal.</i>`;
+};
+function newsGaugeHtml(g){
+  const v = g.value;
+  const cls = v<=44 ? 'neg' : (v<=55 ? '' : 'pos');
+  return `
+    <div class="news-gauge">
+      <div style="display:flex; justify-content:space-between; align-items:baseline;">
+        <span class="${cls}" style="font-size:30px; font-weight:bold; line-height:1;">${v}</span>
+        <span class="${cls}" style="font-size:13px; font-weight:bold;">${escapeHtml(g.label)}</span>
+      </div>
+      <div class="news-gauge-bar"><div class="news-gauge-marker" style="left:${v}%"></div></div>
+      <div class="news-gauge-scale"><span>Extreme Fear</span><span>Neutral</span><span>Extreme Greed</span></div>
+      <div class="save-note" style="margin-top:6px;">Based on ${g.headlines} headlines from the last 48h</div>
+    </div>`;
+}
+function renderNewsPanel(){
+  const container = document.getElementById('news-panel');
+  const tipSlot = document.getElementById('news-tip');
+  if(!container) return;
+  if(tipSlot && !tipSlot.innerHTML) tipSlot.innerHTML = tipIcon('news');
+  if(!newsData){ container.innerHTML = '<div class="empty">Loading…</div>'; return; }
+  if(newsData.fetchError){ container.innerHTML = `<div class="empty">Could not reach /api/news: ${escapeHtml(newsData.fetchError)}</div>`; return; }
+  const items = newsData.items || [];
+  if(!items.length){ container.innerHTML = '<div class="empty">No headlines right now.</div>'; return; }
+  const down = (newsData.sources||[]).filter(s=>!s.ok).map(s=>s.name);
+  container.innerHTML = `
+    ${newsData.gauge ? newsGaugeHtml(newsData.gauge) : ''}
+    <div class="news-scroll">
+      ${items.map(n=>`
+      <div class="news-item">
+        ${isHttpUrl(n.link) ? `<a href="${escapeHtml(n.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(n.title)}</a>` : escapeHtml(n.title)}
+        <div class="src"><span class="sent-tag ${escapeHtml(n.tag)}">${escapeHtml(n.tag)}</span> ${escapeHtml(n.source||'')} · ${newsAgeLabel(n.pubDate)}</div>
+      </div>`).join('')}
+    </div>
+    ${down.length ? `<div class="save-note">Unavailable right now: ${escapeHtml(down.join(', '))}</div>` : ''}`;
+}
+function newsAgeLabel(iso){
+  const t = iso ? new Date(iso).getTime() : NaN;
+  if(isNaN(t)) return '';
+  const h = (Date.now() - t) / 3600000;
+  if(h < 1) return Math.max(1, Math.round(h*60)) + 'm ago';
+  if(h < 24) return Math.round(h) + 'h ago';
+  return Math.round(h/24) + 'd ago';
+}
+// Watchlist headlines come back unscored from api/news.js (a short newest-first list) — sort and
+// drop near-identical titles (first 6 normalized words) so five outlets running one story show once.
 function dedupeAndSortNews(items){
   const sorted = (items||[]).slice().sort((a,b)=> new Date(b.pubDate||0) - new Date(a.pubDate||0));
   const seen = new Set();
@@ -2359,31 +2490,12 @@ function renderNewsList(items, err){
   if(err) return `<div class="empty">${escapeHtml(err)}</div>`;
   const deduped = dedupeAndSortNews(items);
   if(!deduped.length) return '<div class="empty">No headlines right now.</div>';
-  return deduped.slice(0,5).map(n=>`
+  return deduped.slice(0,8).map(n=>`
     <div class="news-item">
       ${isHttpUrl(n.link) ? `<a href="${escapeHtml(n.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(n.title)}</a>` : escapeHtml(n.title)}
       ${n.source ? `<div class="src">${escapeHtml(n.source)}</div>` : ''}
     </div>
   `).join('');
-}
-function renderNewsPanel(){
-  const container = document.getElementById('news-panel');
-  if(!container) return;
-  if(!newsData){ container.innerHTML = '<div class="empty">Loading…</div>'; return; }
-  if(newsData.fetchError){ container.innerHTML = `<div class="empty">Could not reach /api/news: ${escapeHtml(newsData.fetchError)}</div>`; return; }
-  container.innerHTML = `
-    <div class="news-section-label" style="margin-bottom:6px;">India</div>
-    ${renderNewsList(newsData.indiaNews, newsData.indiaNewsError)}
-    <div class="news-section-label" style="margin:12px 0 6px 0;">World</div>
-    ${renderNewsList(newsData.worldNews, newsData.worldNewsError)}
-  `;
-}
-function renderTrendingPanel(){
-  const container = document.getElementById('trending-panel');
-  if(!container) return;
-  if(!newsData){ container.innerHTML = '<div class="empty">Loading…</div>'; return; }
-  if(newsData.fetchError){ container.innerHTML = `<div class="empty">Could not reach /api/news: ${escapeHtml(newsData.fetchError)}</div>`; return; }
-  container.innerHTML = renderNewsList(newsData.trending, newsData.trendingError);
 }
 
 // ---------- watchlist ----------
@@ -2431,13 +2543,19 @@ function renderWatchlistNews(){
   container.innerHTML = renderNewsList(newsData.watchlistNews, newsData.watchlistNewsError);
 }
 
-// Stock table — Name / Mcap / RS Score / Volume Deviation, all computed client-side from
-// data already tracked for other panels (ema_state's rsCloses/recentVolumes), plus one static
-// file (marketcap.json — built like sectors.json, from NSE's own NIFTY 50/Next 50/Midcap 150/
-// Smallcap 250 constituent lists, which exactly partition the NIFTY 500). Stores a 1–500 rank
-// per symbol (1 = biggest, in the order NSE itself publishes those 4 lists) rather than just a
-// Large/Mid/Small string — an approximate but genuinely sortable proxy for market cap, not a
-// real ₹ figure (no free NSE source gives that), and precise enough to drive the tier filter.
+// ---------- Stocks table ----------
+// Rows = the constituents of the selected index ("basket"), from api/constituents.js (official
+// NSE / niftyindices lists, cached 7 days in localStorage and at the CDN — not refetched per page
+// load). Columns:
+//   • Mcap (₹ Cr)  — api/mcap.js (Yahoo Finance, unofficial), cached 24h in localStorage
+//   • RS Score     — computeRSRatings() over the tracked NIFTY 500 universe (ema_state.rsCloses)
+//   • Vol Dev      — volumeDeviationPct() from ema_state.recentVolumes
+// RS/Vol need stored price history, which only exists for the NIFTY 500 — other baskets' extra
+// names show "—" there. marketcap.json (static 1–500 rank) still drives the Large/Mid/Small pill.
+const RS_WINDOW = 66;        // trading days (~3 months) of closes kept in ema_state.rsCloses
+const VOL_PRIOR_DAYS = 5;    // volume is compared against the average of this many prior sessions
+const WEEK_MS = 7*24*3600*1000;
+const MCAP_TTL_MS = 24*3600*1000;
 let marketCapData = null;
 const MCAP_TIERS = [
   { name: 'Nifty 50', max: 50 },
@@ -2462,83 +2580,233 @@ function mcapClass(mc){
   if(mc==='Small Cap') return 'indexfut';
   return '';
 }
-// Today's volume vs. the average of the 5 trading days right before it — recentVolumes (20-
-// day rolling window) already ends with today's volume as its last entry (pushed in
-// updateBreadthIfNeeded()), so the prior week is the 5 entries just before that.
+// Today's volume vs. the average of the VOL_PRIOR_DAYS sessions right before it — recentVolumes
+// (20-day rolling window) already ends with today's volume as its last entry (pushed in
+// updateBreadthIfNeeded()).
 function volumeDeviationPct(sym){
   const st = emaStateCache && emaStateCache[sym];
   const rv = st && st.recentVolumes;
-  if(!Array.isArray(rv) || rv.length < 6) return null;
+  if(!Array.isArray(rv) || rv.length < VOL_PRIOR_DAYS + 1) return null;
   const today = rv[rv.length-1];
-  const priorWeek = rv.slice(-6,-1);
-  const avg = priorWeek.reduce((a,b)=>a+b,0)/priorWeek.length;
+  const prior = rv.slice(-(VOL_PRIOR_DAYS+1), -1);
+  const avg = prior.reduce((a,b)=>a+b,0)/prior.length;
   if(!avg) return null;
   return (today-avg)/avg*100;
 }
-// Click either header to sort by it; clicking the active column again flips direction. Mcap
-// sorts on the underlying rank number (lower rank = bigger company), but the arrow/label
-// shown to the user describes actual market-cap direction (High→Low / Low→High), not the
-// raw rank direction, since those are inverted from each other.
+// Indian digit grouping: 123456 -> "₹1,23,456 Cr"
+function formatCrore(n){
+  return '₹' + Math.round(n).toLocaleString('en-IN') + ' Cr';
+}
+
+TIPS.rs = ()=>`<b>RS Score (1–99)</b><br>
+  How strong this stock's price trend has been over the last ~3 months compared with the other stocks tracked here.<br><br>
+  <b>How it's calculated</b><br>
+  1. For each tracked NIFTY 500 stock: return = (latest close − oldest close in the stored ${RS_WINDOW}-trading-day window) ÷ that oldest close.<br>
+  2. All stocks are ranked by that return; a stock's score is its percentile in the ranking, scaled to 1–99.<br><br>
+  So 90 means it beat about 90% of the tracked stocks; 10 means it lagged about 90%. Green = 70+ (leader), red = 30 or below (laggard). It is relative to the other stocks — no index is subtracted. "—" means no ${RS_WINDOW}-day history is stored for it (stocks outside the NIFTY 500, or too new).`;
+TIPS.voldev = ()=>`<b>Volume Deviation (vs last ${VOL_PRIOR_DAYS} days)</b><br>
+  (Latest session's volume − average volume of the ${VOL_PRIOR_DAYS} sessions before it) ÷ that average × 100.<br><br>
+  +50% = traded 50% more than its recent norm; −30% = 30% quieter. It uses end-of-day volume from the daily NSE file saved each session, so it reflects the last completed trading day, not live volume. "—" means not enough stored volume history (stocks outside the NIFTY 500).`;
+TIPS.mcap = ()=>`<b>Market cap (₹ crore)</b><br>
+  Share price × shares outstanding, in crore rupees (1 crore = 10 million), Indian digit grouping. Source: Yahoo Finance (an unofficial feed — no free official per-stock figure exists), cached up to 24 hours, so it moves with the price. "—" means the feed had no figure for that stock.`;
+
+// ----- basket (index) selection -----
+const BASKET_GROUP_ORDER = ['Broad market', 'Sectoral', 'Thematic', 'SME'];
+let basketCatalog = [{ id:'nifty500', label:'Nifty 500', group:'Broad market' }];
+let currentBasket = 'nifty500';
+const basketCache = {};   // id -> { constituents, error }
+function lsGet(key, maxAgeMs){
+  try {
+    const o = JSON.parse(localStorage.getItem(key) || 'null');
+    if(o && o.t && Date.now() - o.t < maxAgeMs) return o.v;
+  } catch(e){}
+  return null;
+}
+function lsSet(key, v){
+  try { localStorage.setItem(key, JSON.stringify({ t: Date.now(), v })); } catch(e){}
+}
+async function loadBasketCatalog(){
+  let cat = lsGet('basketCatalog_v1', WEEK_MS);
+  if(!cat){
+    try {
+      const j = await (await fetch('/api/constituents')).json();
+      if(Array.isArray(j.catalog) && j.catalog.length){ cat = j.catalog; lsSet('basketCatalog_v1', cat); }
+    } catch(e){}
+  }
+  if(cat) basketCatalog = cat;
+  renderBasketOptions();
+}
+function renderBasketOptions(){
+  const sel = document.getElementById('stock-universe-select');
+  if(!sel) return;
+  const searchEl = document.getElementById('basket-search');
+  const q = searchEl ? searchEl.value.trim().toLowerCase() : '';
+  const match = b => !q || b.label.toLowerCase().includes(q) || b.group.toLowerCase().includes(q);
+  // the selected basket always stays listed so a search never silently changes what's shown
+  const list = basketCatalog.filter(b => match(b) || b.id === currentBasket);
+  const groups = BASKET_GROUP_ORDER.concat(list.map(b=>b.group).filter(g=>!BASKET_GROUP_ORDER.includes(g)));
+  const seen = new Set();
+  let html = '';
+  groups.forEach(g=>{
+    if(seen.has(g)) return; seen.add(g);
+    const items = list.filter(b=>b.group===g);
+    if(items.length) html += `<optgroup label="${escapeHtml(g)}">${items.map(b=>`<option value="${escapeHtml(b.id)}"${b.id===currentBasket?' selected':''}>${escapeHtml(b.label)}</option>`).join('')}</optgroup>`;
+  });
+  sel.innerHTML = html || '<option value="">No match</option>';
+  if(q && !basketCatalog.some(match)) sel.innerHTML = '<option value="">No match</option>';
+}
+// Enter in the search box jumps to the first matching index
+function basketSearchKey(e){
+  if(e.key !== 'Enter') return;
+  const q = e.target.value.trim().toLowerCase();
+  const first = q && basketCatalog.find(b=>b.label.toLowerCase().includes(q) || b.group.toLowerCase().includes(q));
+  if(first){ currentBasket = first.id; renderBasketOptions(); onBasketChange(); }
+}
+async function ensureBasket(id){
+  if(basketCache[id]) return basketCache[id];
+  const cached = lsGet('basket_v1_' + id, WEEK_MS);
+  if(cached){ basketCache[id] = { constituents: cached }; return basketCache[id]; }
+  try {
+    const j = await (await fetch('/api/constituents?index=' + encodeURIComponent(id))).json();
+    if(Array.isArray(j.constituents) && j.constituents.length){
+      lsSet('basket_v1_' + id, j.constituents);
+      basketCache[id] = { constituents: j.constituents };
+    } else return { constituents: null, error: j.error || 'constituent list unavailable' };
+  } catch(e){
+    return { constituents: null, error: e.message || String(e) };
+  }
+  return basketCache[id];
+}
+async function onBasketChange(){
+  const sel = document.getElementById('stock-universe-select');
+  if(!sel || !sel.value) return;
+  currentBasket = sel.value;
+  await showBasket();
+}
+async function showBasket(){
+  const id = currentBasket;
+  const container = document.getElementById('stock-table');
+  if(container && !basketCache[id]) container.innerHTML = '<div class="empty">Loading index constituents…</div>';
+  const b = await ensureBasket(id);
+  if(id !== currentBasket) return; // user switched again while loading
+  if(!b.constituents){
+    if(container) container.innerHTML = `<div class="empty">Could not load this index: ${escapeHtml(b.error||'unknown error')}</div>`;
+    return;
+  }
+  renderStockTable();
+  fetchMcaps(b.constituents.map(c=>c.symbol));
+}
+
+// ----- market cap (₹ crore) -----
+const mcapCrore = {};          // symbol -> ₹ crore
+const mcapTried = new Set();   // symbols asked for this page load (so no-figure isn't retried in a loop)
+const mcapDone = new Set();    // symbols whose request has finished (answer or not)
+let mcapLoading = false;
+(function loadMcapCache(){
+  try {
+    const o = JSON.parse(localStorage.getItem('mcap_v1') || '{}');
+    const now = Date.now();
+    Object.keys(o).forEach(s=>{ if(Array.isArray(o[s]) && now - o[s][1] < MCAP_TTL_MS) mcapCrore[s] = o[s][0]; });
+  } catch(e){}
+})();
+function saveMcapCache(){
+  try {
+    const now = Date.now(), o = {};
+    Object.keys(mcapCrore).forEach(s=>{ o[s] = [mcapCrore[s], now]; });
+    // keep each symbol's original timestamp if it was already cached
+    const prev = JSON.parse(localStorage.getItem('mcap_v1') || '{}');
+    Object.keys(o).forEach(s=>{ if(prev[s] && prev[s][0] === o[s][0]) o[s][1] = prev[s][1]; });
+    localStorage.setItem('mcap_v1', JSON.stringify(o));
+  } catch(e){}
+}
+async function fetchMcaps(symbols){
+  const need = symbols.filter(s=>mcapCrore[s] === undefined && !mcapTried.has(s));
+  if(!need.length) return;
+  mcapLoading = true;
+  renderStockTable();
+  const chunks = [];
+  for(let i=0; i<need.length; i+=300) chunks.push(need.slice(i, i+300));
+  for(const chunk of chunks){
+    chunk.forEach(s=>mcapTried.add(s));
+    try {
+      const j = await (await fetch('/api/mcap?symbols=' + encodeURIComponent(chunk.join(',')))).json();
+      Object.keys(j.mcap || {}).forEach(s=>{ mcapCrore[s] = j.mcap[s]; });
+    } catch(e){ /* column stays "—" */ }
+    chunk.forEach(s=>mcapDone.add(s));
+    renderStockTable();
+  }
+  saveMcapCache();
+  mcapLoading = false;
+  renderStockTable();
+}
+
+// Click RS Score or Mcap header to sort; clicking the active column again flips direction.
+// "desc" always means highest value first; rows with no value sort last either way.
 let stockSort = { by: 'rs', dir: 'desc' };
 function setStockSort(by){
   if(stockSort.by === by) stockSort.dir = stockSort.dir === 'desc' ? 'asc' : 'desc';
-  // First click on either column leads with "best/biggest first" — dir 'asc' on mcap means
-  // rank ascending, i.e. the biggest companies (High→Low market cap), matching how 'desc' on
-  // rs already means highest RS Score first.
-  else stockSort = { by, dir: by==='mcap' ? 'asc' : 'desc' };
+  else stockSort = { by, dir: 'desc' };
   renderStockTable();
 }
 function renderStockTable(){
   const container = document.getElementById('stock-table');
   if(!container) return; // not on the Stocks view
-  if(!emaStateCache || !Object.keys(emaStateCache).length){
-    container.innerHTML = '<div class="empty">Needs today\'s breadth update first — give it a moment.</div>';
+  const b = basketCache[currentBasket];
+  if(!b || !b.constituents){
+    if(!container.innerHTML) container.innerHTML = '<div class="empty">Loading index constituents…</div>';
     return;
   }
-  const filterSelect = document.getElementById('stock-universe-select');
-  const filter = filterSelect ? filterSelect.value : 'All';
-  const rsRatings = computeRSRatings();
-  let rows = Object.keys(emaStateCache).map(sym=>{
-    const st = emaStateCache[sym];
-    if(!st || st.lastClose==null) return null;
-    const rank = (marketCapData && marketCapData[sym]) ?? null;
+  const trackedReady = !!emaStateCache;
+  const rsRatings = trackedReady ? computeRSRatings() : {};
+  let rows = b.constituents.map(c=>{
+    const rank = (marketCapData && marketCapData[c.symbol]) ?? null;
     return {
-      sym, rank,
-      tier: tierFromRank(rank),
-      mcap: capCategoryFromRank(rank),
-      rs: rsRatings[sym] ?? null,
-      volDev: volumeDeviationPct(sym)
+      sym: c.symbol, name: c.name, rank,
+      cap: capCategoryFromRank(rank),
+      crore: mcapCrore[c.symbol] ?? null,
+      rs: rsRatings[c.symbol] ?? null,
+      volDev: trackedReady ? volumeDeviationPct(c.symbol) : null
     };
-  }).filter(Boolean);
-  if(filter !== 'All') rows = rows.filter(r=>r.tier === filter);
+  });
+  const key = stockSort.by==='mcap' ? 'crore' : 'rs';
   rows.sort((a,b)=>{
-    // Mcap uses rank ascending==biggest-first internally; rs uses the score directly.
-    const va = stockSort.by==='mcap' ? (a.rank ?? Infinity) : (a.rs ?? -1);
-    const vb = stockSort.by==='mcap' ? (b.rank ?? Infinity) : (b.rs ?? -1);
+    const va = a[key], vb = b[key];
+    if(va==null && vb==null) return a.sym.localeCompare(b.sym);
+    if(va==null) return 1;
+    if(vb==null) return -1;
     return stockSort.dir==='asc' ? va-vb : vb-va;
   });
   const freshness = document.getElementById('stocks-freshness');
   if(freshness){
-    const anyState = Object.values(emaStateCache).find(s=>s && s.lastDate);
-    freshness.textContent = anyState ? `As of ${anyState.lastDate} · ${rows.length} names` : '';
+    const anyState = emaStateCache && Object.values(emaStateCache).find(s=>s && s.lastDate);
+    const tracked = rows.filter(r=>r.rs!=null || r.volDev!=null).length;
+    freshness.textContent = `${rows.length} names` + (anyState ? ` · RS/volume as of ${anyState.lastDate} (${tracked} tracked)` : '');
   }
-  const rsArrow = stockSort.by==='rs' ? (stockSort.dir==='desc' ? ' ▼' : ' ▲') : '';
-  // dir 'asc' on mcap = rank ascending = biggest company first = High→Low market cap.
-  const mcapArrow = stockSort.by==='mcap' ? (stockSort.dir==='asc' ? ' ▲ High→Low' : ' ▼ Low→High') : '';
+  const arrow = by => stockSort.by===by ? (stockSort.dir==='desc' ? ' ▼' : ' ▲') : '';
+  const mcapCell = r => r.crore!=null ? formatCrore(r.crore) : (mcapLoading && !mcapDone.has(r.sym) ? '…' : '—');
   container.innerHTML = `<div class="stock-table-list"><table style="font-size:13px;">
     <tr>
-      <th style="cursor:pointer;" onclick="setStockSort('mcap')" title="Click to sort by market cap">Name / Mcap${mcapArrow}</th>
-      <th style="cursor:pointer;" onclick="setStockSort('rs')" title="Click to sort by RS Score">RS Score${rsArrow} <span class="info-icon" title="IBD-style Relative Strength Rating, 1-99 — percentile rank of trailing ~3-month return vs. the tracked NIFTY 500 universe. Higher = stronger relative performance.">ⓘ</span></th>
-      <th>Vol Dev (wk) <span class="info-icon" title="Today's traded volume vs. the average of the 5 trading days right before it, as a %. Positive = busier than usual, negative = quieter.">ⓘ</span></th>
+      <th>Name</th>
+      <th style="cursor:pointer; text-align:right;" onclick="setStockSort('mcap')">Mcap (₹ Cr)${arrow('mcap')}${tipIcon('mcap')}</th>
+      <th style="cursor:pointer; text-align:right;" onclick="setStockSort('rs')">RS Score${arrow('rs')}${tipIcon('rs')}</th>
+      <th style="text-align:right;">Vol Dev (wk)${tipIcon('voldev')}</th>
     </tr>
     ${rows.map(r=>`<tr>
-      <td style="font-size:13px; font-weight:600;">${r.sym} <span class="pill ${mcapClass(r.mcap)}" style="font-weight:normal;" title="${r.tier||''}">${r.mcap}</span></td>
-      <td class="${rsRatingClass(r.rs)}">${r.rs ?? '-'}</td>
-      <td class="${r.volDev==null?'':(r.volDev>=0?'pos':'neg')}">${r.volDev==null?'-':(r.volDev>=0?'+':'')+r.volDev.toFixed(0)+'%'}</td>
+      <td style="font-weight:600;">${escapeHtml(r.sym)} ${r.cap!=='-' ? `<span class="pill ${mcapClass(r.cap)}" style="font-weight:normal;">${r.cap}</span>` : ''}
+        <div style="font-weight:normal; font-size:11px; color:var(--text-dim);">${escapeHtml(r.name||'')}</div></td>
+      <td style="text-align:right; white-space:nowrap;">${mcapCell(r)}</td>
+      <td class="${rsRatingClass(r.rs)}" style="text-align:right;">${r.rs ?? '—'}</td>
+      <td class="${r.volDev==null?'':(r.volDev>=0?'pos':'neg')}" style="text-align:right;">${r.volDev==null?'—':(r.volDev>=0?'+':'')+r.volDev.toFixed(0)+'%'}</td>
     </tr>`).join('')}
   </table></div>`;
 }
-fetch('/marketcap.json').then(r=>r.json()).then(d=>{ marketCapData = d; renderStockTable(); }).catch(()=>{ /* Mcap column just shows "-" — non-critical, static asset */ });
+fetch('/marketcap.json').then(r=>r.json()).then(d=>{ marketCapData = d; renderStockTable(); }).catch(()=>{ /* Large/Mid/Small pill just stays hidden — non-critical, static asset */ });
+// Called when the Stocks tab is shown: baskets list (cached a week) then the selected basket.
+async function initStocksTab(){
+  await loadBasketCatalog();
+  await showBasket();
+}
+
 
 // Triggered on opening the Market Regime tab — no cron, since a cron-invoked function
 // would need a service_role key (or a long-lived stored credential) to write to Supabase,
@@ -2645,7 +2913,7 @@ async function updateBreadthIfNeeded(){
   // Market Thrust (advance/decline): whole-market, not limited to ema_state-tracked
   // symbols — every EQ-series symbol in today's bhavcopy that also has a prevClose counts,
   // matching the broader "whole exchange" framing this is meant to represent.
-  let advances = 0, declines = 0;
+  let advances = 0, declines = 0, unchanged = 0;
   if(resp.prevCloses){
     Object.keys(resp.closes).forEach(sym=>{
       const prev = resp.prevCloses[sym];
@@ -2653,6 +2921,7 @@ async function updateBreadthIfNeeded(){
       const price = resp.closes[sym];
       if(price > prev) advances++;
       else if(price < prev) declines++;
+      else unchanged++;
     });
   }
 
@@ -2672,15 +2941,17 @@ async function updateBreadthIfNeeded(){
     await afterBreadthUpdate();
     return;
   }
-  const { error: historySaveErr } = await sb.from('market_breadth_history').upsert({
+  // count_unchanged needs migration 008 — upsertTolerant retries without it if that column
+  // doesn't exist yet, so the daily save never breaks on a not-yet-run migration.
+  const { error: historySaveErr } = await upsertTolerant('market_breadth_history', {
     user_id: session.user.id, snapshot_date: resp.date,
     pct_above_50ema: +(above50/counted*100).toFixed(2),
     pct_above_200ema: +(above200/counted*100).toFixed(2),
     count_up20_5d: up20_5d, count_up30_5d: up30_5d,
     count_up4pct_vol: up4pctVol, count_down4pct_vol: down4pctVol,
     count_newhigh_n500: newHighN500, count_newlow_n500: newLowN500,
-    count_advances: advances, count_declines: declines
-  }, { onConflict: 'user_id,snapshot_date' });
+    count_advances: advances, count_declines: declines, count_unchanged: unchanged
+  }, { onConflict: 'user_id,snapshot_date' }, ['count_unchanged']);
   if(historySaveErr){
     statusEl.textContent = `Breadth update FAILED to save (market_breadth_history): ${historySaveErr.message}. Last known: ${latest ? latest.snapshot_date : 'none'}.`;
     await afterBreadthUpdate();
