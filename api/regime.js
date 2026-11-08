@@ -94,7 +94,7 @@ const SECTOR_INDEX_MAP = {
 };
 
 module.exports = async (req, res) => {
-  const [indices, fiidii, pcr, nifty500] = await Promise.all([
+  const [indices, pcr, nifty500] = await Promise.all([
     safeFetch('https://www.nseindia.com/api/allIndices', j => {
       const rows = j.data || [];
       const find = sym => rows.find(x => x.indexSymbol === sym || x.index === sym);
@@ -109,17 +109,6 @@ module.exports = async (req, res) => {
       });
       if (vix == null && !thrust && Object.keys(sectors).length === 0) return null;
       return { vix, thrust, sectors };
-    }),
-    safeFetch('https://www.nseindia.com/api/fiidiiTradeReact', j => {
-      const arr = Array.isArray(j) ? j : [];
-      const fii = arr.find(x => x.category === 'FII/FPI');
-      const dii = arr.find(x => x.category === 'DII');
-      if (!fii && !dii) return null;
-      return {
-        date: (fii || dii).date,
-        fiiNet: fii ? parseFloat(fii.netValue) : null,
-        diiNet: dii ? parseFloat(dii.netValue) : null,
-      };
     }),
     safeFetchCsv(
       d => `https://archives.nseindia.com/content/nsccl/fao_participant_oi_${ddmmyyyy(d)}.csv`,
@@ -158,10 +147,6 @@ module.exports = async (req, res) => {
     thrustError: indices.error ?? null,
     sectorAdvDecl: indices.value ? indices.value.sectors : null,
     sectorAdvDeclError: indices.error ?? null,
-    fiiNet: fiidii.value ? fiidii.value.fiiNet : null,
-    diiNet: fiidii.value ? fiidii.value.diiNet : null,
-    fiiDiiDate: fiidii.value ? fiidii.value.date : null,
-    fiiDiiError: fiidii.error ?? null,
     pcr: pcr.value ? pcr.value.pcr : null,
     pcrDate: pcr.value ? pcr.value.date : null,
     pcrError: pcr.error ?? null,

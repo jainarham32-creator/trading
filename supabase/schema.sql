@@ -4,7 +4,7 @@
 -- migration files in this folder instead (migration_002_setup_regime_sizing.sql,
 -- migration_003_ema_breadth.sql, migration_004_segment_alloc_and_breadth_extras.sql,
 -- migration_005_indexfuture_and_nifty500ema.sql, migration_006_newhighs_advdecl.sql,
--- migration_007_watchlist.sql),
+-- migration_007_watchlist.sql, migration_008_unchanged_regime_score.sql),
 -- which are additive (ALTER TABLE ADD COLUMN IF NOT EXISTS / CREATE TABLE IF NOT EXISTS)
 -- and safe to re-run.
 
@@ -93,6 +93,7 @@ create table public.market_regime (
   dii_net       numeric,
   pcr           numeric,       -- auto-fetched via NSE participant-OI data, see nse-market-data skill
   regime_label  text,          -- 'Risk-On' | 'Neutral' | 'Risk-Off'
+  regime_score  integer,       -- 0-100 composite behind regime_label (migration 008)
   notes         text default '', -- unused by the UI (removed) but kept so old rows aren't orphaned
   nifty500_close numeric,      -- Nifty 500 index's own daily close (ind_close_all file)
   nifty500_ema20  numeric,     -- incremental 20-EMA of the above — feeds the Regime Score's
@@ -126,6 +127,7 @@ create table public.market_breadth_history (
   count_advances     integer,  -- whole-market (all EQ-series bhavcopy symbols) close > prev close
   count_declines     integer,  -- same, close < prev close — Market Thrust pie chart, today-only,
                                 -- not backfilled historically (see nse-market-data skill)
+  count_unchanged    integer,  -- same, close == prev close (migration 008)
   updated_at         timestamptz not null default now(),
   primary key (user_id, snapshot_date)
 );
