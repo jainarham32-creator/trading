@@ -253,12 +253,20 @@ module.exports = async (req, res) => {
     return;
   }
 
+  // Call the PUBLIC production domain, not req.headers.host: on a cron invocation the host is the
+  // deployment URL, which can sit behind Vercel's deployment protection and answer with an HTML
+  // login page instead of JSON (this is why earlier cron snapshots saved with empty VIX/PCR).
   let liveRegime = {};
-  try {
-    const r = await fetch(`https://${req.headers.host}/api/regime`);
-    liveRegime = await r.json();
-  } catch (e) {
-    log.push(`api/regime fetch failed: ${e.message || e}`);
+  const regimeHosts = [process.env.VERCEL_PROJECT_PRODUCTION_URL, 'trading.arhamjain.in', req.headers.host].filter(Boolean);
+  for (const h of regimeHosts) {
+    try {
+      const r = await fetch(`https://${h}/api/regime`);
+      const j = await r.json();
+      if (j && (j.vix != null || j.pcr != null)) { liveRegime = j; log.push(`api/regime ok via ${h}`); break; }
+      log.push(`api/regime via ${h}: no vix/pcr in response (HTTP ${r.status})`);
+    } catch (e) {
+      log.push(`api/regime via ${h} failed: ${e.message || e}`);
+    }
   }
 
   const { data: usersData, error: usersErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });

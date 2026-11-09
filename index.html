@@ -2018,7 +2018,8 @@ function renderRegimeHistory(){
         <td>${score==null?'-':score}</td>
         <td class="${scoreClass(label)}">${label||'-'}</td>
       </tr>`;
-    }).join('') + '</table>';
+    }).join('') + '</table>' +
+    (regimeHistory.some(r=>r.pcr==null) ? '<div class="save-note">"-" = no PCR was saved for that day (earlier daily saves came through empty). The score needs the day\'s put-call ratio, which NSE only publishes for the latest day, so it can\'t be recovered afterwards.</div>' : '');
 }
 
 // ---------- charts ----------
