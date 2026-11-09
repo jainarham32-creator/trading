@@ -409,21 +409,6 @@
         </div>
 
         <div class="panel">
-            <p><b>Thesis:</b> seven inputs — volatility, short- and long-term breadth, options positioning, new highs/lows, the index's own trend, and today's live advance/decline — each scored 0-100 on a smooth sliding scale, re-centered so an unremarkable/neutral reading on each one scores ~50 (not skewed bullish by default), then weighted and averaged into one composite. A cross-check against your Playbook's setups, not a standalone signal. Shows "Scoring…" until every input for the day has arrived.</p>
-            <p><b>Weighting:</b></p>
-            <ul>
-              <li>VIX (20%): 100 at ≤11 (calm), 0 at ≥26 (fearful), sliding scale between</li>
-              <li>% of NIFTY 500 above 50 EMA (15%) and above 200 EMA (15%): 0% → 0, 50% → 50 (neutral midpoint), 75%+ → 100, easing back above that (overbought caution)</li>
-              <li>PCR (10%): 0 at ≤0.6, 50 at ≈1.05 (neutral), 100 at ≥1.5</li>
-              <li>New Highs vs Lows, NIFTY 500 252-day (15%): highs ÷ (highs+lows) × 100 — continuous, not just "which side wins"</li>
-              <li>NIFTY 500 vs. its 20 EMA (10%): 0 at 3% below, 50 at even, 100 at 3% above</li>
-              <li>Market Thrust — today's live advance/decline (15%)</li>
-            </ul>
-            <p>Score ≥ 65 → <span class="pos">Risk-On</span>. Score ≤ 35 → <span class="neg">Risk-Off</span>. Else Neutral.</p>
-          </div>
-        </div>
-
-        <div class="panel">
           <h2>New Highs / New Lows</h2>
           <div class="save-note" style="margin-bottom:8px;">Universe: NIFTY 500 constituents · New = today's close breaks the prior 252-trading-day (~52-week) high/low.</div>
           <div id="chart-highs-lows" style="height:220px;"></div>
