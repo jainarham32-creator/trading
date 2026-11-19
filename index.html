@@ -261,6 +261,9 @@
   .funnel-count{text-align:right; font-weight:bold;}
   .funnel-drop{font-weight:normal; font-size:11px; color:var(--red);}
   @media (max-width:600px){.funnel-row{grid-template-columns:120px 1fr 64px;}}
+  .chip{display:inline-block; font-size:12px; border:1px solid var(--line); border-radius:14px; padding:2px 10px; margin:0 6px 6px 0; background:var(--panel-2);}
+  .chip a{cursor:pointer; margin-left:6px; color:var(--text-dim);}
+  .chip a:hover{color:var(--red);}
   .tdot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:3px; border:1px solid var(--line);}
   .tdot.on{background:var(--green); border-color:var(--green);}
   .tdot.off{background:transparent;}
@@ -2728,24 +2731,25 @@ async function showBasket(){
 
 // ----- market cap (₹ crore) -----
 const mcapCrore = {};          // symbol -> ₹ crore
+const peBySym = {};            // symbol -> trailing P/E (only where the feed has a positive one)
 const mcapTried = new Set();   // symbols asked for this page load (so no-figure isn't retried in a loop)
 const mcapDone = new Set();    // symbols whose request has finished (answer or not)
 let mcapLoading = false;
 (function loadMcapCache(){
   try {
-    const o = JSON.parse(localStorage.getItem('mcap_v1') || '{}');
+    const o = JSON.parse(localStorage.getItem('mcap_v2') || '{}');
     const now = Date.now();
-    Object.keys(o).forEach(s=>{ if(Array.isArray(o[s]) && now - o[s][1] < MCAP_TTL_MS) mcapCrore[s] = o[s][0]; });
+    Object.keys(o).forEach(s=>{ if(Array.isArray(o[s]) && now - o[s][1] < MCAP_TTL_MS){ mcapCrore[s] = o[s][0]; if(o[s][2]!=null) peBySym[s] = o[s][2]; } });
   } catch(e){}
 })();
 function saveMcapCache(){
   try {
     const now = Date.now(), o = {};
-    Object.keys(mcapCrore).forEach(s=>{ o[s] = [mcapCrore[s], now]; });
+    Object.keys(mcapCrore).forEach(s=>{ o[s] = [mcapCrore[s], now, peBySym[s] ?? null]; });
     // keep each symbol's original timestamp if it was already cached
-    const prev = JSON.parse(localStorage.getItem('mcap_v1') || '{}');
+    const prev = JSON.parse(localStorage.getItem('mcap_v2') || '{}');
     Object.keys(o).forEach(s=>{ if(prev[s] && prev[s][0] === o[s][0]) o[s][1] = prev[s][1]; });
-    localStorage.setItem('mcap_v1', JSON.stringify(o));
+    localStorage.setItem('mcap_v2', JSON.stringify(o));
   } catch(e){}
 }
 async function fetchMcaps(symbols){
@@ -2760,6 +2764,7 @@ async function fetchMcaps(symbols){
     try {
       const j = await (await fetch('/api/mcap?symbols=' + encodeURIComponent(chunk.join(',')))).json();
       Object.keys(j.mcap || {}).forEach(s=>{ mcapCrore[s] = j.mcap[s]; });
+      Object.keys(j.pe || {}).forEach(s=>{ peBySym[s] = j.pe[s]; });
     } catch(e){ /* column stays "—" */ }
     chunk.forEach(s=>mcapDone.add(s));
     renderMcapViews();
@@ -3062,6 +3067,8 @@ let studySettings = loadStudySettings();
 function saveStudySettings(){ try { localStorage.setItem('rsstudy_v1', JSON.stringify(studySettings)); } catch(e){} }
 let studySort = { by: 'traitCount', dir: 'desc' };
 let studyNames = {};
+let studyIndustry = {};            // symbol -> NSE industry (from the NIFTY 500 constituent list)
+const studySelected = new Set();   // symbols ticked in the table (for "Add selected to watchlist")
 fetch('/nifty500.json').then(r=>r.json()).then(list=>{ list.forEach(s=>{ studyNames[s.symbol] = s.name; }); renderRsStudy(); }).catch(()=>{});
 
 // Counts the up-legs in a close series with a zigzag: a leg ends when price falls `pullbackPct`% from
@@ -3106,12 +3113,13 @@ function studyRsMap(win){
   return map;
 }
 const f1 = x => x==null || isNaN(x) ? '—' : (Math.round(x*10)/10).toString();
-function studyMetrics(sym, st, rs){
+function studyMetrics(sym, st, rs, rs3){
   const T = studySettings.traits;
   const c = Array.isArray(st.close252) ? st.close252 : [];
   const n = c.length, last = st.lastClose;
   const m = {
-    sym, name: studyNames[sym] || '', close: last, rs,
+    sym, name: studyNames[sym] || '', industry: studyIndustry[sym] || '', pe: peBySym[sym] ?? null,
+    close: last, rs, rs3: rs3 ?? null,
     rank: (marketCapData && marketCapData[sym]) ?? null,
     crore: mcapCrore[sym] ?? null,
     pct200: st.ema200 ? (last/st.ema200 - 1)*100 : null,
@@ -3173,15 +3181,15 @@ function studyWindowLabel(w){ return w===252 ? '12-month' : (w===126 ? '6-month'
 function studySteps(){
   const S = studySettings;
   return [
-    { key:'rs', on:S.rsOn, label:`RS ≥ ${S.rsMin} (top ${100-S.rsMin}%)`,
+    { key:'rs', onKey:'rsOn', on:S.rsOn, label:`RS ${S.rsWindow===252?'12M':(S.rsWindow===126?'6M':'3M')} ≥ ${S.rsMin} (top ${100-S.rsMin}%)`,
       test: r => r.rs!=null && r.rs >= S.rsMin },
-    { key:'mcap', on:S.mcapOn, label:`Market cap > ₹${S.mcapMin.toLocaleString('en-IN')} cr`,
+    { key:'mcap', onKey:'mcapOn', on:S.mcapOn, label:`Market cap > ₹${S.mcapMin.toLocaleString('en-IN')} cr`,
       // no figure from the feed: keep only large/mid caps (NSE's own top-250 rank), which are far above any sensible floor
       test: r => r.crore!=null ? r.crore >= S.mcapMin : (r.rank!=null && r.rank <= 250) },
-    { key:'dma', on:S.dmaOn, label:'Price > 200 DMA', test: r => r.aboveDma },
-    { key:'turnover', on:S.turnoverOn, label:`Avg turnover > ₹${S.turnoverMin} cr`,
+    { key:'dma', onKey:'dmaOn', on:S.dmaOn, label:'Price > 200 DMA', test: r => r.aboveDma },
+    { key:'turnover', onKey:'turnoverOn', on:S.turnoverOn, label:`Avg turnover > ₹${S.turnoverMin} cr`,
       test: r => r.turnover!=null && r.turnover >= S.turnoverMin },
-    { key:'price', on:S.priceOn, label:`Share price > ₹${S.priceMin}`, test: r => r.close > S.priceMin }
+    { key:'price', onKey:'priceOn', on:S.priceOn, label:`Share price > ₹${S.priceMin}`, test: r => r.close > S.priceMin }
   ];
 }
 
@@ -3213,6 +3221,7 @@ function setStudy(key, val, group){
   if(typeof val === 'number' && isNaN(val)) return;
   if(group) studySettings[group][key] = val; else studySettings[key] = val;
   saveStudySettings();
+  if(!group && (/On$/.test(key) || key==='minTraits')) renderRsStudyControls(); // keep the left-panel switches in sync when a chip's × turns one off
   renderRsStudy();
 }
 function resetStudy(){
@@ -3280,9 +3289,9 @@ async function addSymbolToWatchlist(sym){
 }
 let studyLastList = [];
 function exportStudyCsv(){
-  const head = ['Symbol','Name','Mcap_Cr','Price','RS','Pct_vs_200EMA','Avg_turnover_Cr','Pct_below_52w_high','Traits_of_6'];
+  const head = ['Symbol','Name','Industry','Mcap_Cr','Price','PE','RS','RS_3M','Pct_vs_200EMA','Avg_turnover_Cr','Pct_below_52w_high','Traits_of_6'];
   const esc = v => { const s = v==null ? '' : String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
-  const rows = studyLastList.map(r=>[r.sym, r.name, r.crore, r.close, r.rs, r.pct200==null?'':r.pct200.toFixed(1), r.turnover==null?'':r.turnover.toFixed(1), r.offHigh==null?'':r.offHigh.toFixed(1), r.traitCount]);
+  const rows = studyLastList.map(r=>[r.sym, r.name, r.industry, r.crore, r.close, r.pe, r.rs, r.rs3, r.pct200==null?'':r.pct200.toFixed(1), r.turnover==null?'':r.turnover.toFixed(1), r.offHigh==null?'':r.offHigh.toFixed(1), r.traitCount]);
   const csv = [head].concat(rows).map(r=>r.map(esc).join(',')).join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv' }));
@@ -3303,8 +3312,9 @@ function renderRsStudy(){
   }
   const S = studySettings;
   const rsMap = studyRsMap(S.rsWindow);
+  const rsMap3 = S.rsWindow === 66 ? rsMap : studyRsMap(66);   // 3-month RS shown alongside when another window is selected
   const universe = Object.keys(emaStateCache).filter(s=>emaStateCache[s] && emaStateCache[s].lastClose!=null)
-    .map(sym => studyMetrics(sym, emaStateCache[sym], rsMap[sym] ?? null));
+    .map(sym => studyMetrics(sym, emaStateCache[sym], rsMap[sym] ?? null, rsMap3[sym] ?? null));
   // funnel
   const stages = [{ label:'NIFTY 500 stocks tracked', count: universe.length, first:true }];
   let cur = universe;
@@ -3336,8 +3346,8 @@ function renderRsStudy(){
   let list = cur.filter(r => r.traitCount >= S.minTraits);
   const val = r => {
     switch(studySort.by){
-      case 'crore': return r.crore; case 'close': return r.close; case 'rs': return r.rs;
-      case 'pct200': return r.pct200; case 'turnover': return r.turnover; case 'offHigh': return r.offHigh;
+      case 'crore': return r.crore; case 'close': return r.close; case 'rs': return r.rs; case 'rs3': return r.rs3;
+      case 'pe': return r.pe; case 'pct200': return r.pct200; case 'turnover': return r.turnover; case 'offHigh': return r.offHigh;
       default: return r.traitCount * 1000 + (r.rs ?? 0);
     }
   };
@@ -3349,41 +3359,88 @@ function renderRsStudy(){
     return studySort.dir==='asc' ? va-vb : vb-va;
   });
   studyLastList = list;
+  const winShort = S.rsWindow===252 ? '12M' : (S.rsWindow===126 ? '6M' : '3M');
+  const showRs3 = S.rsWindow !== 66;
   const arrow = by => studySort.by===by ? (studySort.dir==='desc' ? ' ▼' : ' ▲') : '';
   const th = (by, label, extra) => `<th style="cursor:pointer; text-align:right;" onclick="setStudySort('${by}')">${label}${arrow(by)}${extra||''}</th>`;
   list.forEach(r=>{
     TIPS['trait:'+r.sym] = ()=> `<b>${escapeHtml(r.sym)} — ${r.traitCount} of 6</b><br>` + r.traits.map(t=>
       `${t.pass===true?'✅':(t.pass===false?'❌':'➖')} <b>${t.n}. ${escapeHtml(t.label)}</b><br><span style="opacity:.8">${escapeHtml(t.detail)}</span>`).join('<br>');
   });
+  // active-filter chips (click × to switch a filter off, like the screener this is modelled on)
+  const chips = studySteps().filter(s=>s.on).map(s=>`<span class="chip">${escapeHtml(s.label)} <a onclick="setStudy('${s.onKey}', false)" title="Switch this filter off">×</a></span>`);
+  if(S.minTraits > 0) chips.push(`<span class="chip">Traits ≥ ${S.minTraits} of 6 <a onclick="setStudy('minTraits', 0)" title="Clear">×</a></span>`);
+  const selCount = list.filter(r=>studySelected.has(r.sym)).length;
   tableEl.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-      <div class="save-note" style="margin:0;">${list.length} stock${list.length===1?'':'s'} listed${S.minTraits>0 ? ` (at least ${S.minTraits} of 6 traits)` : ''} · prices as of ${(Object.values(emaStateCache).find(s=>s&&s.lastDate)||{}).lastDate || '—'}</div>
-      <button class="ghost small" style="margin:0;" onclick="exportStudyCsv()" ${list.length?'':'disabled'}>Export CSV</button>
+    <div style="margin-bottom:10px;">${chips.length ? chips.join('') : '<span class="save-note">No filters on — showing every tracked stock.</span>'}</div>
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+      <div class="save-note" style="margin:0;">${list.length} result${list.length===1?'':'s'} · prices as of ${(Object.values(emaStateCache).find(s=>s&&s.lastDate)||{}).lastDate || '—'}</div>
+      <div style="display:flex; gap:6px;">
+        <button class="ghost small" style="margin:0;" id="study-addsel" onclick="addSelectedToWatchlist()" ${selCount?'':'disabled'}>Add selected to watchlist (${selCount})</button>
+        <button class="ghost small" style="margin:0;" onclick="copyStudyTv(this)" ${list.length?'':'disabled'} title="Copies NSE:SYMBOL,… (the ticked stocks, or all results if none ticked) for pasting into a TradingView watchlist">Copy TV</button>
+        <button class="ghost small" style="margin:0;" onclick="exportStudyCsv()" ${list.length?'':'disabled'}>Export CSV</button>
+      </div>
     </div>
     <div class="stock-table-list" style="max-height:720px;"><table style="font-size:13px;">
-      <tr><th>Stock</th>
-        ${th('crore','Mcap (₹ Cr)')}${th('close','Price')}${th('rs','RS')}${th('pct200','vs 200 DMA')}
-        ${th('turnover','Avg turnover (₹ Cr)', tipIcon('studyTurnover'))}${th('offHigh','Below 52w high')}
+      <tr><th><input type="checkbox" style="width:auto;" onchange="toggleStudySelAll(this.checked)" ${list.length && selCount===list.length ? 'checked':''}></th>
+        <th>Stock</th><th>Industry</th>
+        ${th('crore','Mcap (₹ Cr)')}${th('close','Price')}${th('pe','PE')}${th('rs','RS '+winShort)}${showRs3 ? th('rs3','RS 3M') : ''}${th('pct200','vs 200 DMA')}
+        ${th('turnover','Avg turnover (₹ Cr)', tipIcon('studyTurnover'))}${th('offHigh','From 52W high')}
         ${th('traitCount','Traits', tipIcon('studyTraits'))}<th></th></tr>
       ${list.map(r=>{
         const dots = r.traits.map(t=>`<span class="tdot ${t.pass===true?'on':(t.pass===false?'off':'na')}"></span>`).join('');
         const watched = watchlist.includes(r.sym);
         const cap = capCategoryFromRank(r.rank);
+        const q = escapeHtml(r.sym).replace(/'/g,"\\'");
         return `<tr>
+          <td><input type="checkbox" style="width:auto;" ${studySelected.has(r.sym)?'checked':''} onchange="toggleStudySel('${q}', this.checked)"></td>
           <td style="font-weight:600;">${escapeHtml(r.sym)} ${cap!=='-' ? `<span class="pill ${mcapClass(cap)}" style="font-weight:normal;">${cap}</span>` : ''}
             <div style="font-weight:normal; font-size:11px; color:var(--text-dim);">${escapeHtml(r.name)}</div></td>
+          <td style="font-size:12px; color:var(--text-dim);">${escapeHtml(r.industry)}</td>
           <td style="text-align:right; white-space:nowrap;">${r.crore!=null ? formatCrore(r.crore) : (mcapLoading && !mcapDone.has(r.sym) ? '…' : '—')}</td>
           <td style="text-align:right;">${r.close!=null ? r.close.toLocaleString('en-IN',{maximumFractionDigits:2}) : '—'}</td>
+          <td style="text-align:right;">${r.pe!=null ? r.pe.toLocaleString('en-IN',{maximumFractionDigits:2}) : (mcapLoading && !mcapDone.has(r.sym) ? '…' : '—')}</td>
           <td class="${rsRatingClass(r.rs)}" style="text-align:right;">${r.rs ?? '—'}</td>
+          ${showRs3 ? `<td class="${rsRatingClass(r.rs3)}" style="text-align:right;">${r.rs3 ?? '—'}</td>` : ''}
           <td class="${r.pct200==null?'':(r.pct200>=0?'pos':'neg')}" style="text-align:right;">${r.pct200==null?'—':(r.pct200>=0?'+':'')+r.pct200.toFixed(1)+'%'}</td>
           <td style="text-align:right;">${r.turnover==null?'—':r.turnover.toFixed(1)}</td>
           <td style="text-align:right;">${r.offHigh==null?'—':r.offHigh.toFixed(1)+'%'}</td>
           <td style="text-align:right; white-space:nowrap;"><span class="tip trait-dots" tabindex="0" role="button" data-tip-key="trait:${escapeHtml(r.sym)}">${dots}</span> <b>${r.traitCount}</b></td>
-          <td><button class="ghost small" style="margin:0; padding:1px 6px;" ${watched?'disabled':''} onclick="addSymbolToWatchlist('${escapeHtml(r.sym).replace(/'/g,"\\'")}')">${watched?'✓':'+ Watch'}</button></td>
+          <td><button class="ghost small" style="margin:0; padding:1px 6px;" ${watched?'disabled':''} onclick="addSymbolToWatchlist('${q}')">${watched?'✓':'+ Watch'}</button></td>
         </tr>`;
       }).join('')}
     </table></div>
-    <div class="save-note">Universe: the NIFTY 500 stocks tracked in your data (${universe.length}); RS is ranked across all of them before any filter. "DMA" = the stored exponential average. Market caps come from an unofficial feed and can be missing for a few names.</div>`;
+    <div class="save-note">Universe: the NIFTY 500 stocks tracked in your data (${universe.length}); RS is ranked across all of them before any filter. "DMA" = the stored exponential average. Market cap and PE come from an unofficial feed and can be missing for a few names (PE is blank for loss-making companies). Industry is NSE's classification. Only the latest day is stored, so there is no "as of" date picker.</div>`;
+}
+function toggleStudySel(sym, on){
+  if(on) studySelected.add(sym); else studySelected.delete(sym);
+  const n = studyLastList.filter(r=>studySelected.has(r.sym)).length;
+  const b = document.getElementById('study-addsel');
+  if(b){ b.textContent = `Add selected to watchlist (${n})`; b.disabled = !n; }
+}
+function toggleStudySelAll(on){
+  studyLastList.forEach(r=>{ if(on) studySelected.add(r.sym); else studySelected.delete(r.sym); });
+  renderRsStudy();
+}
+async function addSelectedToWatchlist(){
+  const add = [...studySelected].filter(s=>!watchlist.includes(s));
+  if(!add.length) return;
+  if(!confirm(`Add ${add.length} stock${add.length===1?'':'s'} to your watchlist?`)) return;
+  watchlist.push(...add);
+  studySelected.clear();
+  renderWatchlist();
+  renderRsStudy();
+  if(await saveWatchlist()) fetchNews();
+}
+// "NSE:SYM,NSE:SYM,…" — the format TradingView's watchlist import takes. Tickers with & or - use _ there (M&M → NSE:M_M).
+async function copyStudyTv(btn){
+  const src = studySelected.size ? studyLastList.filter(r=>studySelected.has(r.sym)) : studyLastList;
+  const text = src.map(r=>'NSE:' + r.sym.replace(/[&-]/g,'_')).join(',');
+  try { await navigator.clipboard.writeText(text); }
+  catch(e){ const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); }catch(_){} ta.remove(); }
+  const old = btn.textContent;
+  btn.textContent = `Copied ${src.length} ✓`;
+  setTimeout(()=>{ btn.textContent = old; }, 1800);
 }
 // Tab-open: make sure the price history is loaded, then pull market caps for the whole universe.
 async function initRsStudy(){
@@ -3393,6 +3450,9 @@ async function initRsStudy(){
   await ensureEmaStateCache();
   renderRsStudy();
   fetchMcaps(Object.keys(emaStateCache));
+  // industry labels: the NIFTY 500 constituent list (cached 7 days, shared with the Stocks tab's index picker)
+  const nb = await ensureBasket('nifty500');
+  if(nb && nb.constituents){ nb.constituents.forEach(c=>{ studyIndustry[c.symbol] = c.industry; if(!studyNames[c.symbol]) studyNames[c.symbol] = c.name; }); renderRsStudy(); }
 }
 
 // ---------- init ----------
