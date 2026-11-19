@@ -219,9 +219,10 @@
   .paged-layout.regime-layout.no-left{grid-template-columns:1fr 460px;}
   .paged-layout.journal-layout{grid-template-columns:240px 1fr 340px;}
   .paged-layout.stocks-layout{grid-template-columns:320px 1fr 340px;}
+  .paged-layout.rsstudy-layout{grid-template-columns:310px 1fr;}
   @media (max-width:1200px){.paged-layout.regime-layout{grid-template-columns:240px 1fr 340px;} .paged-layout.regime-layout.no-left{grid-template-columns:1fr 340px;} .paged-layout.stocks-layout{grid-template-columns:280px 1fr 280px;}}
   @media (max-width:1100px){.paged-layout.journal-layout{grid-template-columns:240px 1fr 280px;}}
-  @media (max-width:900px){.paged-layout, .paged-layout.regime-layout, .paged-layout.journal-layout, .paged-layout.stocks-layout{grid-template-columns:1fr;}}
+  @media (max-width:900px){.paged-layout, .paged-layout.regime-layout, .paged-layout.journal-layout, .paged-layout.stocks-layout, .paged-layout.rsstudy-layout{grid-template-columns:1fr;}}
   .tip{cursor:help; color:var(--text-dim); font-size:12px; margin-left:4px; font-weight:normal; text-transform:none; letter-spacing:0; user-select:none; outline:none;}
   .tip:hover, .tip:focus{color:var(--amber);}
   #tip-pop{display:none; position:fixed; z-index:400; width:300px; max-width:calc(100vw - 16px); padding:10px 12px; background:var(--panel); color:var(--text); border:1px solid var(--amber-dim); border-radius:4px; box-shadow:0 6px 18px rgba(0,0,0,.35); font-size:12px; line-height:1.5; font-weight:normal; text-transform:none; letter-spacing:0; text-align:left; pointer-events:none;}
@@ -246,6 +247,25 @@
   .news-item a:hover{color:var(--amber);}
   .news-item .src{color:var(--text-dim); font-size:10px; margin-top:2px;}
   .trend-row{display:flex; justify-content:space-between; font-size:12px; padding:3px 0;}
+  .study-section{font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--amber-dim); margin-bottom:4px;}
+  .study-row{display:flex; align-items:center; gap:8px; margin:8px 0; font-size:13px; flex-wrap:wrap;}
+  .study-row label{display:flex; align-items:center; gap:6px; margin:0; text-transform:none; letter-spacing:0; font-size:13px; color:var(--text);}
+  .study-row input[type=checkbox]{width:auto;}
+  .study-row input[type=number]{width:78px; padding:4px 6px; font-size:13px;}
+  .study-row select{width:auto; padding:4px 6px; font-size:13px;}
+  .study-row .unit{font-size:11px; color:var(--text-dim);}
+  .funnel-row{display:grid; grid-template-columns:200px 1fr 80px; gap:10px; align-items:center; margin:6px 0; font-size:13px;}
+  .funnel-track{background:var(--panel-2); border-radius:3px; height:20px; overflow:hidden;}
+  .funnel-fill{height:100%; background:var(--amber-dim); border-radius:3px; transition:width .25s;}
+  .funnel-fill.final{background:var(--green);}
+  .funnel-count{text-align:right; font-weight:bold;}
+  .funnel-drop{font-weight:normal; font-size:11px; color:var(--red);}
+  @media (max-width:600px){.funnel-row{grid-template-columns:120px 1fr 64px;}}
+  .tdot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:3px; border:1px solid var(--line);}
+  .tdot.on{background:var(--green); border-color:var(--green);}
+  .tdot.off{background:transparent;}
+  .tdot.na{background:var(--line);}
+  .trait-dots{margin-left:0; font-size:inherit;}
   .news-scroll{max-height:560px; overflow-y:auto; margin-top:10px; border-top:1px solid var(--line);}
   .news-gauge{padding:2px 0 4px;}
   .news-gauge-bar{position:relative; height:8px; border-radius:4px; margin-top:10px; background:linear-gradient(90deg, var(--red) 0%, var(--amber) 50%, var(--green) 100%);}
@@ -390,6 +410,7 @@
   <div class="tab active" data-view="regime">Market Regime</div>
   <div class="tab" data-view="journal">Journal</div>
   <div class="tab" data-view="stocks">Stocks</div>
+  <div class="tab" data-view="rsstudy">RS Filter Study</div>
 </div>
 
 <main>
@@ -521,6 +542,27 @@
     </div>
   </div>
 
+  <!-- RS FILTER STUDY -->
+  <div class="view" id="view-rsstudy">
+    <div class="paged-layout rsstudy-layout">
+      <div>
+        <div class="panel">
+          <h2>Filters</h2>
+          <div id="rsstudy-controls"></div>
+        </div>
+      </div>
+      <div class="main-col">
+        <div class="panel">
+          <h2>From 500 names to a list you can study</h2>
+          <div id="rsstudy-funnel"></div>
+        </div>
+        <div class="panel">
+          <h2>Stocks passing the funnel</h2>
+          <div id="rsstudy-table"></div>
+        </div>
+      </div>
+    </div>
+  </div>
   <!-- STOCKS -->
   <div class="view" id="view-stocks">
     <div class="paged-layout stocks-layout">
@@ -920,6 +962,7 @@ function onTabShown(view){
   // it triggers the same live-fetch/breadth pipeline itself (Fear/Greed needs liveRegime,
   // the stock table needs emaStateCache), plus its own news fetch.
   if(view==='stocks'){ fetchRegimeLive(); updateBreadthIfNeeded(); fetchNews(); initStocksTab(); }
+  if(view==='rsstudy'){ initRsStudy(); }
 }
 document.querySelectorAll('.tab').forEach(t=>{
   t.addEventListener('click', ()=>{
@@ -2709,7 +2752,7 @@ async function fetchMcaps(symbols){
   const need = symbols.filter(s=>mcapCrore[s] === undefined && !mcapTried.has(s));
   if(!need.length) return;
   mcapLoading = true;
-  renderStockTable();
+  renderMcapViews();
   const chunks = [];
   for(let i=0; i<need.length; i+=300) chunks.push(need.slice(i, i+300));
   for(const chunk of chunks){
@@ -2719,11 +2762,11 @@ async function fetchMcaps(symbols){
       Object.keys(j.mcap || {}).forEach(s=>{ mcapCrore[s] = j.mcap[s]; });
     } catch(e){ /* column stays "—" */ }
     chunk.forEach(s=>mcapDone.add(s));
-    renderStockTable();
+    renderMcapViews();
   }
   saveMcapCache();
   mcapLoading = false;
-  renderStockTable();
+  renderMcapViews();
 }
 
 // Click RS Score or Mcap header to sort; clicking the active column again flips direction.
@@ -2862,7 +2905,8 @@ async function updateBreadthIfNeeded(){
     // volume-confirmed 1-day move: needs a full trailing 20-day average and today's volume
     const recentVolumes = Array.isArray(prior.recentVolumes) ? prior.recentVolumes.slice() : [];
     if(recentVolumes.length >= 20 && vol!=null && prior.lastClose){
-      const priorAvgVol = recentVolumes.reduce((a,b)=>a+b,0) / recentVolumes.length;
+      const last20 = recentVolumes.slice(-20); // the spike test always uses a 20-day average, even though 30 days are now stored
+      const priorAvgVol = last20.reduce((a,b)=>a+b,0) / last20.length;
       const pct1d = (price - prior.lastClose) / prior.lastClose * 100;
       if(priorAvgVol && vol > priorAvgVol*1.5){
         if(pct1d >= 4) up4pctVol++;
@@ -2871,7 +2915,7 @@ async function updateBreadthIfNeeded(){
     }
     if(vol!=null){
       recentVolumes.push(vol);
-      if(recentVolumes.length > 20) recentVolumes.shift();
+      if(recentVolumes.length > VOLUME_HISTORY_DAYS) recentVolumes.shift(); // 30 days: the RS Filter Study's average-turnover filter
     }
 
     // ~3-month rolling close window feeding the Sector Strength panel's RS Rating —
@@ -2966,8 +3010,389 @@ async function afterBreadthUpdate(){
   renderSectorStrength();
   renderWeeklyMovers();
   renderStockTable();
+  renderRsStudy();
   if(!liveRegime.fetchError && !liveRegime.marketClosed && liveRegime.vix!==undefined) renderRegimeTab();
   await maybeAutoSaveRegime();
+}
+
+// ---------- RS Filter Study tab ----------
+// A screening funnel for the NIFTY 500: RS rank → market cap → price vs 200 DMA → 30-day average
+// turnover → share price, plus a "winner traits" checklist per stock (the six traits from the
+// study slides). Everything is computed client-side from data the app already stores:
+//   ema_state (per stock: EMA50/EMA200, last close, 30 days of volume, 66 closes, 252 closes)
+//   /api/mcap (₹ crore market cap, shared cache with the Stocks tab)
+// Every threshold lives in STUDY_DEFAULTS and is editable on the page (saved per browser).
+// Universe = the NIFTY 500 stocks tracked in ema_state; the RS percentile is computed across that
+// whole universe BEFORE any filter is applied, so RS ≥ 80 really means "top 20% of the 500".
+const VOLUME_HISTORY_DAYS = 30;   // trading days of volume kept per stock in ema_state.recentVolumes
+const STUDY_DEFAULTS = {
+  rsOn: true,       rsMin: 80,        rsWindow: 66,      // 66 / 126 / 252 trading days = ~3 / 6 / 12 months
+  mcapOn: true,     mcapMin: 500,                        // ₹ crore
+  dmaOn: true,                                           // close above the stored EMA200
+  turnoverOn: true, turnoverMin: 7,                      // ₹ crore, average daily over the last 30 days
+  priceOn: true,    priceMin: 10,                        // ₹ per share
+  minTraits: 0,                                          // only list stocks passing at least this many of the 6 traits
+  traits: {
+    stretchMax: 12,       // trait 2: close at most this % above its EMA50 ...
+    runMax: 50,           //          ... and up at most this % over the last 66 trading days
+    baseMinDays: 30,      // trait 4: at least this many trading days since the 52-week high
+    baseDepthMax: 25,     //          ... still within this % of that high
+    tightMax: 6,          //          ... last 10 closes within this % range
+    contractionMax: 0.7,  //          ... and that range at most this fraction of the prior 30 days' range
+    legMinGain: 25,       // trait 3: a "leg" is a rise of at least this %
+    legPullback: 10,      //          separated by a pullback of at least this %
+    legsMax: 2,           //          pass if the stock is in its first or second leg
+    rsMin: 80,            // trait 5
+    capMin: 1000, capMax: 10000   // trait 6 (₹ crore)
+  }
+};
+function cloneDefaults(){ return JSON.parse(JSON.stringify(STUDY_DEFAULTS)); }
+function loadStudySettings(){
+  const s = cloneDefaults();
+  try {
+    const o = JSON.parse(localStorage.getItem('rsstudy_v1') || 'null');
+    if(o){
+      Object.keys(s).forEach(k=>{ if(k!=='traits' && o[k]!==undefined) s[k] = o[k]; });
+      if(o.traits) Object.keys(s.traits).forEach(k=>{ if(o.traits[k]!==undefined) s.traits[k] = o.traits[k]; });
+    }
+  } catch(e){}
+  return s;
+}
+let studySettings = loadStudySettings();
+function saveStudySettings(){ try { localStorage.setItem('rsstudy_v1', JSON.stringify(studySettings)); } catch(e){} }
+let studySort = { by: 'traitCount', dir: 'desc' };
+let studyNames = {};
+fetch('/nifty500.json').then(r=>r.json()).then(list=>{ list.forEach(s=>{ studyNames[s.symbol] = s.name; }); renderRsStudy(); }).catch(()=>{});
+
+// Counts the up-legs in a close series with a zigzag: a leg ends when price falls `pullbackPct`% from
+// its peak; it only counts if it rose at least `minGainPct`% from its start. The leg in progress counts.
+// Closes only (no intraday highs/lows are stored), so this is an approximation of what a chart reader sees.
+function countLegs(c, pullbackPct, minGainPct){
+  if(!Array.isArray(c) || c.length < 30) return null;
+  const rev = pullbackPct/100, mg = minGainPct/100;
+  let state = 0, pivotLow = c[0], hi = c[0], lo = c[0], legs = 0;
+  for(let i=1; i<c.length; i++){
+    const p = c[i];
+    if(state === 0){
+      if(p >= lo*(1+rev)){ state = 1; pivotLow = lo; hi = p; }
+      else if(p <= hi*(1-rev)){ state = -1; lo = p; }
+      else { if(p > hi) hi = p; if(p < lo) lo = p; }
+    } else if(state === 1){
+      if(p > hi) hi = p;
+      else if(p <= hi*(1-rev)){ if(hi/pivotLow - 1 >= mg) legs++; state = -1; lo = p; }
+    } else {
+      if(p < lo) lo = p;
+      else if(p >= lo*(1+rev)){ state = 1; pivotLow = lo; hi = p; }
+    }
+  }
+  if(state === 1 && hi/pivotLow - 1 >= mg) legs++;
+  return legs;
+}
+// RS percentile (1–99) over the whole tracked universe for a chosen return window.
+function studyRsMap(win){
+  const rets = {};
+  Object.keys(emaStateCache).forEach(sym=>{
+    const st = emaStateCache[sym];
+    if(!st || st.lastClose==null) return;
+    const arr = win <= 66 ? st.rsCloses : st.close252;
+    if(!Array.isArray(arr) || arr.length < win) return;
+    const base = arr[arr.length - win];
+    if(!base) return;
+    rets[sym] = (st.lastClose - base) / base;
+  });
+  const syms = Object.keys(rets).sort((a,b)=>rets[a]-rets[b]);
+  const n = syms.length, map = {};
+  syms.forEach((s,i)=>{ map[s] = n>1 ? Math.round((i/(n-1))*98+1) : 50; });
+  return map;
+}
+const f1 = x => x==null || isNaN(x) ? '—' : (Math.round(x*10)/10).toString();
+function studyMetrics(sym, st, rs){
+  const T = studySettings.traits;
+  const c = Array.isArray(st.close252) ? st.close252 : [];
+  const n = c.length, last = st.lastClose;
+  const m = {
+    sym, name: studyNames[sym] || '', close: last, rs,
+    rank: (marketCapData && marketCapData[sym]) ?? null,
+    crore: mcapCrore[sym] ?? null,
+    pct200: st.ema200 ? (last/st.ema200 - 1)*100 : null,
+    aboveDma: st.ema200!=null && last > st.ema200
+  };
+  // average daily turnover (₹ crore) = mean of volume × close over the last up-to-30 stored sessions
+  const vols = Array.isArray(st.recentVolumes) ? st.recentVolumes : [];
+  const rc = Array.isArray(st.rsCloses) ? st.rsCloses : [];
+  const k = Math.min(VOLUME_HISTORY_DAYS, vols.length, rc.length);
+  m.turnoverDays = k;
+  if(k >= 10){
+    let s = 0;
+    for(let i=1; i<=k; i++) s += vols[vols.length-i] * rc[rc.length-i];
+    m.turnover = s / k / 1e7;
+  } else m.turnover = null;
+  // price structure for the traits (needs ≥ 60 stored closes)
+  const ok = n >= 60;
+  if(ok){
+    let hi = -Infinity, hiIdx = -1;
+    for(let i=0; i<n; i++) if(c[i] >= hi){ hi = c[i]; hiIdx = i; }
+    m.high52 = hi;
+    m.offHigh = (1 - last/hi)*100;
+    m.daysSinceHigh = n - 1 - hiIdx;
+    m.stretch50 = st.ema50 ? (last/st.ema50 - 1)*100 : null;
+    m.run66 = n >= 66 ? (last/c[n-66] - 1)*100 : null;
+    const l10 = c.slice(-10), lo10 = Math.min(...l10);
+    m.tight10 = (Math.max(...l10) - lo10) / lo10 * 100;
+    const pr = c.slice(-40, -10);
+    if(pr.length >= 20){ const lp = Math.min(...pr); m.prior30 = (Math.max(...pr) - lp) / lp * 100; } else m.prior30 = null;
+    m.contraction = m.prior30 ? m.tight10 / m.prior30 : null;
+    m.legs = countLegs(c, T.legPullback, T.legMinGain);
+  }
+  const tri = (cond, avail) => avail ? !!cond : null;
+  m.traits = [
+    { n:1, label:'Prior uptrend',
+      pass: tri(m.aboveDma && st.ema50 > st.ema200, ok && st.ema200!=null && st.ema50!=null),
+      detail: ok ? `Close ${m.aboveDma?'above':'below'} EMA200 (${f1(m.pct200)}%), EMA50 ${st.ema50 > st.ema200 ? 'above' : 'below'} EMA200` : 'not enough history' },
+    { n:2, label:'Early in the move',
+      pass: tri(m.stretch50!=null && m.stretch50 <= T.stretchMax && (m.run66==null || m.run66 <= T.runMax), ok && m.stretch50!=null),
+      detail: ok ? `${f1(m.stretch50)}% above EMA50 (max ${T.stretchMax}%), ${f1(m.run66)}% over 66 days (max ${T.runMax}%)` : 'not enough history' },
+    { n:3, label:'First or second leg',
+      pass: tri(m.legs!=null && m.legs <= T.legsMax, ok && m.legs!=null),
+      detail: ok ? `${m.legs} up-leg${m.legs===1?'':'s'} of ≥${T.legMinGain}% in the last year (max ${T.legsMax})` : 'not enough history' },
+    { n:4, label:'Long base, tight right side',
+      pass: tri(m.daysSinceHigh >= T.baseMinDays && m.offHigh <= T.baseDepthMax && m.tight10 <= T.tightMax && m.contraction!=null && m.contraction <= T.contractionMax, ok),
+      detail: ok ? `${m.daysSinceHigh}d since 52-wk high (min ${T.baseMinDays}), ${f1(m.offHigh)}% below it (max ${T.baseDepthMax}%), last-10-close range ${f1(m.tight10)}% (max ${T.tightMax}%), ${m.contraction==null?'—':f1(m.contraction*100)+'%'} of the prior range (max ${f1(T.contractionMax*100)}%)` : 'not enough history' },
+    { n:5, label:'RS above ' + T.rsMin,
+      pass: tri(rs!=null && rs >= T.rsMin, rs!=null),
+      detail: rs!=null ? `RS ${rs} (${studyWindowLabel(studySettings.rsWindow)} window)` : 'no RS (not enough history)' },
+    { n:6, label:`Small cap ₹${T.capMin.toLocaleString('en-IN')}–${T.capMax.toLocaleString('en-IN')} cr`,
+      pass: tri(m.crore!=null && m.crore >= T.capMin && m.crore <= T.capMax, m.crore!=null),
+      detail: m.crore!=null ? formatCrore(m.crore) : 'market cap unavailable' }
+  ];
+  m.traitCount = m.traits.filter(t=>t.pass===true).length;
+  return m;
+}
+function studyWindowLabel(w){ return w===252 ? '12-month' : (w===126 ? '6-month' : '3-month'); }
+
+function studySteps(){
+  const S = studySettings;
+  return [
+    { key:'rs', on:S.rsOn, label:`RS ≥ ${S.rsMin} (top ${100-S.rsMin}%)`,
+      test: r => r.rs!=null && r.rs >= S.rsMin },
+    { key:'mcap', on:S.mcapOn, label:`Market cap > ₹${S.mcapMin.toLocaleString('en-IN')} cr`,
+      // no figure from the feed: keep only large/mid caps (NSE's own top-250 rank), which are far above any sensible floor
+      test: r => r.crore!=null ? r.crore >= S.mcapMin : (r.rank!=null && r.rank <= 250) },
+    { key:'dma', on:S.dmaOn, label:'Price > 200 DMA', test: r => r.aboveDma },
+    { key:'turnover', on:S.turnoverOn, label:`Avg turnover > ₹${S.turnoverMin} cr`,
+      test: r => r.turnover!=null && r.turnover >= S.turnoverMin },
+    { key:'price', on:S.priceOn, label:`Share price > ₹${S.priceMin}`, test: r => r.close > S.priceMin }
+  ];
+}
+
+// ----- tooltips (text generated from the live settings, so it can't drift from what's computed) -----
+TIPS.studyFunnel = ()=>{
+  const S = studySettings;
+  return `<b>The funnel</b><br>Starts from every NIFTY 500 stock tracked in your data and applies each switched-on filter in order — each count is what's left after that filter.<br><br>
+  <b>RS ≥ ${S.rsMin}</b> — relative-strength percentile (1–99) of the ${studyWindowLabel(S.rsWindow)} return, ranked across the whole tracked universe before any filter. ≥ 80 = the top 20%.<br>
+  <b>Market cap</b> — ₹ crore from Yahoo Finance (unofficial). If the feed has no figure, the stock is kept only if NSE ranks it in the top 250 by size.<br>
+  <b>Price > 200 DMA</b> — latest close above the stored 200-day <i>exponential</i> average.<br>
+  <b>Avg turnover</b> — average of (volume × close) over the last up-to-30 stored sessions, in ₹ crore. End-of-day data.<br>
+  <b>Share price</b> — latest close.`;
+};
+TIPS.studyTraits = ()=>{
+  const T = studySettings.traits;
+  return `<b>Winner traits (0–6)</b><br>The six things the study slide says big past winners had in common. Each is measured from stored closes — no intraday highs/lows are kept, so 3 and 4 are approximations. Hover a stock's dots for its own numbers.<br><br>
+  <b>1 Prior uptrend</b> — close above EMA200 and EMA50 above EMA200.<br>
+  <b>2 Early in the move</b> — at most ${T.stretchMax}% above EMA50 and up at most ${T.runMax}% in 66 days (not extended).<br>
+  <b>3 First or second leg</b> — at most ${T.legsMax} rises of ≥${T.legMinGain}% (each separated by a ≥${T.legPullback}% pullback) in the last year.<br>
+  <b>4 Long base, tight right side</b> — ≥${T.baseMinDays} trading days since the 52-week high, within ${T.baseDepthMax}% of it, last 10 closes inside a ${T.tightMax}% range and under ${Math.round(T.contractionMax*100)}% of the prior 30 days' range.<br>
+  <b>5 RS above ${T.rsMin}</b> — on the RS window chosen at left.<br>
+  <b>6 Small cap</b> — ₹${T.capMin.toLocaleString('en-IN')}–${T.capMax.toLocaleString('en-IN')} crore.<br><br>
+  These describe past winners, not future ones — plenty of stocks that never ran pass the same checks. Use it to shortlist charts to study, not as a signal.`;
+};
+TIPS.studyTurnover = ()=>`<b>Avg turnover (₹ cr / day)</b><br>Average of (volume × close) over the last up-to-${VOLUME_HISTORY_DAYS} sessions stored for the stock, from the daily NSE end-of-day file. The header note says how many days are currently stored.`;
+
+// ----- controls (rendered once; the funnel/table re-render on every change) -----
+function setStudy(key, val, group){
+  if(typeof val === 'number' && isNaN(val)) return;
+  if(group) studySettings[group][key] = val; else studySettings[key] = val;
+  saveStudySettings();
+  renderRsStudy();
+}
+function resetStudy(){
+  studySettings = cloneDefaults();
+  saveStudySettings();
+  renderRsStudyControls();
+  renderRsStudy();
+}
+function numIn(id, key, group, step){
+  const v = group ? studySettings[group][key] : studySettings[key];
+  return `<input type="number" id="${id}" value="${v}" step="${step||1}" onchange="setStudy('${key}', parseFloat(this.value)${group?`,'${group}'`:''})">`;
+}
+function renderRsStudyControls(){
+  const el = document.getElementById('rsstudy-controls');
+  if(!el) return;
+  const S = studySettings;
+  const chk = (id, key) => `<input type="checkbox" id="${id}" ${S[key]?'checked':''} onchange="setStudy('${key}', this.checked)">`;
+  el.innerHTML = `
+    <div class="study-section">Funnel filters</div>
+    <div class="study-row"><label>${chk('st-rsOn','rsOn')} RS ≥</label>${numIn('st-rsMin','rsMin')}</div>
+    <div class="study-row"><label style="margin-left:24px;">RS window</label>
+      <select id="st-rsWindow" onchange="setStudy('rsWindow', parseInt(this.value,10))">
+        <option value="66" ${S.rsWindow===66?'selected':''}>3 months</option>
+        <option value="126" ${S.rsWindow===126?'selected':''}>6 months</option>
+        <option value="252" ${S.rsWindow===252?'selected':''}>12 months</option>
+      </select></div>
+    <div class="study-row"><label>${chk('st-mcapOn','mcapOn')} Market cap &gt; ₹</label>${numIn('st-mcapMin','mcapMin')}<span class="unit">cr</span></div>
+    <div class="study-row"><label>${chk('st-dmaOn','dmaOn')} Price &gt; 200 DMA</label></div>
+    <div class="study-row"><label>${chk('st-turnoverOn','turnoverOn')} Avg turnover &gt; ₹</label>${numIn('st-turnoverMin','turnoverMin','','0.5')}<span class="unit">cr/day</span></div>
+    <div class="study-row"><label>${chk('st-priceOn','priceOn')} Share price &gt; ₹</label>${numIn('st-priceMin','priceMin')}</div>
+    <div class="study-section" style="margin-top:16px;">Winner traits ${tipIcon('studyTraits')}</div>
+    <div class="study-row"><label>Only list stocks with at least</label>
+      <select id="st-minTraits" onchange="setStudy('minTraits', parseInt(this.value,10))">
+        ${[0,1,2,3,4,5,6].map(n=>`<option value="${n}" ${S.minTraits===n?'selected':''}>${n} of 6</option>`).join('')}
+      </select></div>
+    <details style="margin-top:8px;"><summary style="cursor:pointer; font-size:12px; color:var(--text-dim);">Trait thresholds</summary>
+      <div class="study-row"><label>2 · max % above EMA50</label>${numIn('st-stretchMax','stretchMax','traits')}</div>
+      <div class="study-row"><label>2 · max 66-day gain %</label>${numIn('st-runMax','runMax','traits')}</div>
+      <div class="study-row"><label>3 · leg = rise of at least %</label>${numIn('st-legMinGain','legMinGain','traits')}</div>
+      <div class="study-row"><label>3 · separated by pullback %</label>${numIn('st-legPullback','legPullback','traits')}</div>
+      <div class="study-row"><label>3 · pass if legs ≤</label>${numIn('st-legsMax','legsMax','traits')}</div>
+      <div class="study-row"><label>4 · min days since 52-wk high</label>${numIn('st-baseMinDays','baseMinDays','traits')}</div>
+      <div class="study-row"><label>4 · max % below 52-wk high</label>${numIn('st-baseDepthMax','baseDepthMax','traits')}</div>
+      <div class="study-row"><label>4 · last-10-close range ≤ %</label>${numIn('st-tightMax','tightMax','traits','0.5')}</div>
+      <div class="study-row"><label>4 · vs prior 30-day range ≤</label>${numIn('st-contractionMax','contractionMax','traits','0.05')}</div>
+      <div class="study-row"><label>5 · RS above</label>${numIn('st-trsMin','rsMin','traits')}</div>
+      <div class="study-row"><label>6 · market cap from ₹</label>${numIn('st-capMin','capMin','traits')}<span class="unit">cr</span></div>
+      <div class="study-row"><label>6 · market cap to ₹</label>${numIn('st-capMax','capMax','traits')}<span class="unit">cr</span></div>
+    </details>
+    <button class="ghost small" style="margin-top:14px;" onclick="resetStudy()">Reset to slide defaults</button>`;
+}
+
+// ----- table sorting / export / watchlist -----
+function setStudySort(by){
+  if(studySort.by === by) studySort.dir = studySort.dir === 'desc' ? 'asc' : 'desc';
+  else studySort = { by, dir: 'desc' };
+  renderRsStudy();
+}
+async function addSymbolToWatchlist(sym){
+  if(watchlist.includes(sym)) return;
+  watchlist.push(sym);
+  renderWatchlist();
+  renderRsStudy();
+  if(await saveWatchlist()) fetchNews();
+}
+let studyLastList = [];
+function exportStudyCsv(){
+  const head = ['Symbol','Name','Mcap_Cr','Price','RS','Pct_vs_200EMA','Avg_turnover_Cr','Pct_below_52w_high','Traits_of_6'];
+  const esc = v => { const s = v==null ? '' : String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const rows = studyLastList.map(r=>[r.sym, r.name, r.crore, r.close, r.rs, r.pct200==null?'':r.pct200.toFixed(1), r.turnover==null?'':r.turnover.toFixed(1), r.offHigh==null?'':r.offHigh.toFixed(1), r.traitCount]);
+  const csv = [head].concat(rows).map(r=>r.map(esc).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv' }));
+  a.download = 'rs-filter-study-' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+// ----- main render -----
+function renderMcapViews(){ renderStockTable(); renderRsStudy(); }
+function renderRsStudy(){
+  const funnelEl = document.getElementById('rsstudy-funnel');
+  const tableEl = document.getElementById('rsstudy-table');
+  if(!funnelEl || !tableEl) return;
+  if(!document.getElementById('st-rsMin')) renderRsStudyControls();
+  if(!emaStateCache || !Object.keys(emaStateCache).length){
+    funnelEl.innerHTML = tableEl.innerHTML = '<div class="empty">Loading your stored price history…</div>';
+    return;
+  }
+  const S = studySettings;
+  const rsMap = studyRsMap(S.rsWindow);
+  const universe = Object.keys(emaStateCache).filter(s=>emaStateCache[s] && emaStateCache[s].lastClose!=null)
+    .map(sym => studyMetrics(sym, emaStateCache[sym], rsMap[sym] ?? null));
+  // funnel
+  const stages = [{ label:'NIFTY 500 stocks tracked', count: universe.length, first:true }];
+  let cur = universe;
+  studySteps().forEach(step=>{
+    if(!step.on) return;
+    cur = cur.filter(step.test);
+    stages.push({ label: step.label, count: cur.length });
+  });
+  const pending = mcapLoading ? universe.filter(r=>mcapCrore[r.sym]===undefined && !mcapDone.has(r.sym)).length : 0;
+  const days = universe.map(r=>r.turnoverDays).sort((a,b)=>a-b);
+  const medDays = days.length ? days[Math.floor(days.length/2)] : 0;
+  const maxCount = universe.length || 1;
+  const finalCount = cur.length;
+  funnelEl.innerHTML = `
+    ${pending ? `<div class="save-note" style="margin:0 0 8px;">Fetching market caps (${pending} still loading) — the market-cap steps and trait 6 will update as they arrive.</div>` : ''}
+    ${S.turnoverOn && medDays < VOLUME_HISTORY_DAYS ? `<div class="save-note" style="margin:0 0 8px;">Turnover currently uses ${medDays} days of stored volume (typically builds to ${VOLUME_HISTORY_DAYS}).</div>` : ''}
+    ${stages.map((st,i)=>{
+      const isLast = i === stages.length-1 && i>0;
+      const dropped = i>0 ? stages[i-1].count - st.count : 0;
+      return `<div class="funnel-row">
+        <div class="funnel-label">${escapeHtml(st.label)}</div>
+        <div class="funnel-track"><div class="funnel-fill ${isLast?'final':''}" style="width:${Math.max(2, st.count/maxCount*100)}%"></div></div>
+        <div class="funnel-count">${st.count}${dropped>0 ? ` <span class="funnel-drop">−${dropped}</span>` : ''}</div>
+      </div>`;
+    }).join('')}
+    <div style="margin-top:10px; font-size:15px;"><b class="pos">${finalCount}</b> names pass the funnel ${tipIcon('studyFunnel')}</div>`;
+
+  // table
+  let list = cur.filter(r => r.traitCount >= S.minTraits);
+  const val = r => {
+    switch(studySort.by){
+      case 'crore': return r.crore; case 'close': return r.close; case 'rs': return r.rs;
+      case 'pct200': return r.pct200; case 'turnover': return r.turnover; case 'offHigh': return r.offHigh;
+      default: return r.traitCount * 1000 + (r.rs ?? 0);
+    }
+  };
+  list.sort((a,b)=>{
+    const va = val(a), vb = val(b);
+    if(va==null && vb==null) return a.sym.localeCompare(b.sym);
+    if(va==null) return 1;
+    if(vb==null) return -1;
+    return studySort.dir==='asc' ? va-vb : vb-va;
+  });
+  studyLastList = list;
+  const arrow = by => studySort.by===by ? (studySort.dir==='desc' ? ' ▼' : ' ▲') : '';
+  const th = (by, label, extra) => `<th style="cursor:pointer; text-align:right;" onclick="setStudySort('${by}')">${label}${arrow(by)}${extra||''}</th>`;
+  list.forEach(r=>{
+    TIPS['trait:'+r.sym] = ()=> `<b>${escapeHtml(r.sym)} — ${r.traitCount} of 6</b><br>` + r.traits.map(t=>
+      `${t.pass===true?'✅':(t.pass===false?'❌':'➖')} <b>${t.n}. ${escapeHtml(t.label)}</b><br><span style="opacity:.8">${escapeHtml(t.detail)}</span>`).join('<br>');
+  });
+  tableEl.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <div class="save-note" style="margin:0;">${list.length} stock${list.length===1?'':'s'} listed${S.minTraits>0 ? ` (at least ${S.minTraits} of 6 traits)` : ''} · prices as of ${(Object.values(emaStateCache).find(s=>s&&s.lastDate)||{}).lastDate || '—'}</div>
+      <button class="ghost small" style="margin:0;" onclick="exportStudyCsv()" ${list.length?'':'disabled'}>Export CSV</button>
+    </div>
+    <div class="stock-table-list" style="max-height:720px;"><table style="font-size:13px;">
+      <tr><th>Stock</th>
+        ${th('crore','Mcap (₹ Cr)')}${th('close','Price')}${th('rs','RS')}${th('pct200','vs 200 DMA')}
+        ${th('turnover','Avg turnover (₹ Cr)', tipIcon('studyTurnover'))}${th('offHigh','Below 52w high')}
+        ${th('traitCount','Traits', tipIcon('studyTraits'))}<th></th></tr>
+      ${list.map(r=>{
+        const dots = r.traits.map(t=>`<span class="tdot ${t.pass===true?'on':(t.pass===false?'off':'na')}"></span>`).join('');
+        const watched = watchlist.includes(r.sym);
+        const cap = capCategoryFromRank(r.rank);
+        return `<tr>
+          <td style="font-weight:600;">${escapeHtml(r.sym)} ${cap!=='-' ? `<span class="pill ${mcapClass(cap)}" style="font-weight:normal;">${cap}</span>` : ''}
+            <div style="font-weight:normal; font-size:11px; color:var(--text-dim);">${escapeHtml(r.name)}</div></td>
+          <td style="text-align:right; white-space:nowrap;">${r.crore!=null ? formatCrore(r.crore) : (mcapLoading && !mcapDone.has(r.sym) ? '…' : '—')}</td>
+          <td style="text-align:right;">${r.close!=null ? r.close.toLocaleString('en-IN',{maximumFractionDigits:2}) : '—'}</td>
+          <td class="${rsRatingClass(r.rs)}" style="text-align:right;">${r.rs ?? '—'}</td>
+          <td class="${r.pct200==null?'':(r.pct200>=0?'pos':'neg')}" style="text-align:right;">${r.pct200==null?'—':(r.pct200>=0?'+':'')+r.pct200.toFixed(1)+'%'}</td>
+          <td style="text-align:right;">${r.turnover==null?'—':r.turnover.toFixed(1)}</td>
+          <td style="text-align:right;">${r.offHigh==null?'—':r.offHigh.toFixed(1)+'%'}</td>
+          <td style="text-align:right; white-space:nowrap;"><span class="tip trait-dots" tabindex="0" role="button" data-tip-key="trait:${escapeHtml(r.sym)}">${dots}</span> <b>${r.traitCount}</b></td>
+          <td><button class="ghost small" style="margin:0; padding:1px 6px;" ${watched?'disabled':''} onclick="addSymbolToWatchlist('${escapeHtml(r.sym).replace(/'/g,"\\'")}')">${watched?'✓':'+ Watch'}</button></td>
+        </tr>`;
+      }).join('')}
+    </table></div>
+    <div class="save-note">Universe: the NIFTY 500 stocks tracked in your data (${universe.length}); RS is ranked across all of them before any filter. "DMA" = the stored exponential average. Market caps come from an unofficial feed and can be missing for a few names.</div>`;
+}
+// Tab-open: make sure the price history is loaded, then pull market caps for the whole universe.
+async function initRsStudy(){
+  renderRsStudyControls();
+  renderRsStudy();
+  updateBreadthIfNeeded();           // refreshes today's data if due; calls afterBreadthUpdate() → renderRsStudy()
+  await ensureEmaStateCache();
+  renderRsStudy();
+  fetchMcaps(Object.keys(emaStateCache));
 }
 
 // ---------- init ----------

@@ -171,7 +171,8 @@ function computeBreadthUpdate(resp, priorState) {
 
     const recentVolumes = Array.isArray(prior.recentVolumes) ? prior.recentVolumes.slice() : [];
     if (recentVolumes.length >= 20 && vol != null && prior.lastClose) {
-      const priorAvgVol = recentVolumes.reduce((a, b) => a + b, 0) / recentVolumes.length;
+      const last20 = recentVolumes.slice(-20); // spike test stays on a 20-day average even though 30 days are stored
+      const priorAvgVol = last20.reduce((a, b) => a + b, 0) / last20.length;
       const pct1d = (price - prior.lastClose) / prior.lastClose * 100;
       if (priorAvgVol && vol > priorAvgVol * 1.5) {
         if (pct1d >= 4) up4pctVol++;
@@ -180,7 +181,7 @@ function computeBreadthUpdate(resp, priorState) {
     }
     if (vol != null) {
       recentVolumes.push(vol);
-      if (recentVolumes.length > 20) recentVolumes.shift();
+      if (recentVolumes.length > 30) recentVolumes.shift(); // 30 days: RS Filter Study's average-turnover filter
     }
 
     const rsCloses = Array.isArray(prior.rsCloses) ? prior.rsCloses.slice() : [];
