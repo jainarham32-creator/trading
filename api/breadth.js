@@ -25,16 +25,19 @@ function parseClosesAndVolumes(text) {
   const closeI = header.indexOf('CLOSE_PRICE');
   const volI = header.indexOf('TTL_TRD_QNTY');
   const prevCloseI = header.indexOf('PREV_CLOSE');
+  const dateI = header.indexOf('DATE1');
   if (symI === -1 || seriesI === -1 || closeI === -1 || volI === -1) return null;
   const closes = {};
   const volumes = {};
   const prevCloses = {};
+  let fileDate = null;
   for (let i = 1; i < lines.length; i++) {
     const cells = lines[i].split(',');
     if (cells.length <= volI) continue;
     const sym = cells[symI].trim();
     const series = cells[seriesI].trim();
     if (series !== 'EQ') continue;
+    if (!fileDate && dateI !== -1) fileDate = cells[dateI].trim(); // the trading date INSIDE the file, e.g. 19-Oct-2026
     const price = parseFloat(cells[closeI].trim());
     const vol = parseFloat(cells[volI].trim());
     if (!isNaN(price)) closes[sym] = price;
@@ -44,7 +47,14 @@ function parseClosesAndVolumes(text) {
       if (!isNaN(prev)) prevCloses[sym] = prev;
     }
   }
-  return { closes, volumes, prevCloses };
+  return { closes, volumes, prevCloses, fileDate: isoFromNseDate(fileDate) };
+}
+// '19-Oct-2026' -> '2026-10-19' (null if it can't be read)
+function isoFromNseDate(s) {
+  const m = /^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/.exec(s || '');
+  if (!m) return null;
+  const mon = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].indexOf(m[2].toLowerCase());
+  return mon === -1 ? null : `${m[3]}-${String(mon + 1).padStart(2, '0')}-${m[1].padStart(2, '0')}`;
 }
 
 module.exports = async (req, res) => {
@@ -68,7 +78,14 @@ module.exports = async (req, res) => {
       res.status(200).json({ date: date.toISOString().slice(0, 10), closes: null, volumes: null, prevCloses: null, error: 'unexpected response shape' });
       return;
     }
-    res.status(200).json({ date: date.toISOString().slice(0, 10), closes: parsed.closes, volumes: parsed.volumes, prevCloses: parsed.prevCloses, error: null });
+    // On a market holiday NSE's archive serves the PREVIOUS trading day's file under the holiday's name.
+    // Saving that as the holiday would double-count a day in every EMA and breadth series — refuse it.
+    const wantIso = date.toISOString().slice(0, 10);
+    if (parsed.fileDate && parsed.fileDate !== wantIso) {
+      res.status(200).json({ date: wantIso, closes: null, volumes: null, prevCloses: null, error: `market closed on ${wantIso} (NSE served the ${parsed.fileDate} file)` });
+      return;
+    }
+    res.status(200).json({ date: wantIso, closes: parsed.closes, volumes: parsed.volumes, prevCloses: parsed.prevCloses, error: null });
   } catch (e) {
     res.status(200).json({ date: date.toISOString().slice(0, 10), closes: null, volumes: null, error: e.message || String(e) });
   }

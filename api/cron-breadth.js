@@ -113,13 +113,16 @@ function parseClosesAndVolumes(text) {
   const closeI = header.indexOf('CLOSE_PRICE');
   const volI = header.indexOf('TTL_TRD_QNTY');
   const prevCloseI = header.indexOf('PREV_CLOSE');
+  const dateI = header.indexOf('DATE1');
   if (symI === -1 || seriesI === -1 || closeI === -1 || volI === -1) return null;
   const closes = {}, volumes = {}, prevCloses = {};
+  let fileDate = null; // the trading date INSIDE the file, e.g. 19-Oct-2026
   for (let i = 1; i < lines.length; i++) {
     const cells = lines[i].split(',');
     if (cells.length <= volI) continue;
     const sym = cells[symI].trim();
     if (cells[seriesI].trim() !== 'EQ') continue;
+    if (!fileDate && dateI !== -1) fileDate = cells[dateI].trim();
     const price = parseFloat(cells[closeI].trim());
     const vol = parseFloat(cells[volI].trim());
     if (!isNaN(price)) closes[sym] = price;
@@ -129,7 +132,13 @@ function parseClosesAndVolumes(text) {
       if (!isNaN(prev)) prevCloses[sym] = prev;
     }
   }
-  return { closes, volumes, prevCloses };
+  return { closes, volumes, prevCloses, fileDate: isoFromNseDate(fileDate) };
+}
+function isoFromNseDate(s) {
+  const m = /^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/.exec(s || '');
+  if (!m) return null;
+  const mon = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].indexOf(m[2].toLowerCase());
+  return mon === -1 ? null : `${m[3]}-${String(mon + 1).padStart(2, '0')}-${m[1].padStart(2, '0')}`;
 }
 async function fetchBhavcopy(date) {
   const url = `https://archives.nseindia.com/products/content/sec_bhavdata_full_${ddmmyyyy(date)}.csv`;
@@ -138,6 +147,8 @@ async function fetchBhavcopy(date) {
     if (!r.ok) return { error: `HTTP ${r.status}` };
     const parsed = parseClosesAndVolumes(await r.text());
     if (!parsed || !Object.keys(parsed.closes).length) return { error: 'unexpected response shape' };
+    // Holiday guard: NSE serves the previous trading day's file under a holiday's name — never save it as a new day.
+    if (parsed.fileDate && parsed.fileDate !== date.toISOString().slice(0, 10)) return { error: `market closed (NSE served the ${parsed.fileDate} file)` };
     return { date: date.toISOString().slice(0, 10), closes: parsed.closes, volumes: parsed.volumes, prevCloses: parsed.prevCloses };
   } catch (e) {
     return { error: e.message || String(e) };
