@@ -31,7 +31,7 @@ async function getSession() {
 
 async function quoteBatch(symbols, s) {
   const list = symbols.map(x => encodeURIComponent(x + '.NS')).join(',');
-  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${list}&crumb=${encodeURIComponent(s.crumb)}&region=IN&lang=en-IN&fields=marketCap,sharesOutstanding,regularMarketPrice`;
+  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${list}&crumb=${encodeURIComponent(s.crumb)}&region=IN&lang=en-IN&fields=marketCap,sharesOutstanding,regularMarketPrice,trailingPE`;
   const r = await fetch(url, { headers: { 'User-Agent': UA, Cookie: s.cookie } });
   if (r.status === 401 || r.status === 403) { session = null; throw new Error('Yahoo rejected the session (HTTP ' + r.status + ')'); }
   if (!r.ok) throw new Error('Yahoo HTTP ' + r.status);
@@ -77,6 +77,7 @@ module.exports = async (req, res) => {
   if (!wanted.length) { res.status(200).json({ mcap: {}, missing: [], error: 'no valid symbols' }); return; }
 
   const mcap = {};
+  const pe = {};   // trailing P/E from the same quote (only where Yahoo has a positive one — loss-makers have none)
   let error = null;
   try {
     const s = await getSession();
@@ -87,6 +88,7 @@ module.exports = async (req, res) => {
     flat.forEach(q => {
       const sym = String(q.symbol || '').replace(/\.NS$/, '');
       if (sym && q.marketCap > 0) mcap[sym] = Math.round(q.marketCap / 1e7); // ₹ → ₹ crore (1 Cr = 1e7)
+      if (sym && q.trailingPE > 0) pe[sym] = Math.round(q.trailingPE * 100) / 100;
     });
     // Second pass for quotes that came back without a marketCap (capped so a bad day can't fan out).
     const gaps = wanted.filter(x => mcap[x] == null).slice(0, 40);
@@ -99,5 +101,5 @@ module.exports = async (req, res) => {
   }
   const missing = wanted.filter(s => mcap[s] == null);
   if (!error || Object.keys(mcap).length) res.setHeader('Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');
-  res.status(200).json({ fetchedAt: new Date().toISOString(), source: 'Yahoo Finance (unofficial)', mcap, missing, error });
+  res.status(200).json({ fetchedAt: new Date().toISOString(), source: 'Yahoo Finance (unofficial)', mcap, pe, missing, error });
 };
